@@ -59,13 +59,19 @@
 		#size-cells = <1>;
 		ranges;
 
-
 		vic: interrupt-controller@1e6c0080 {
 			compatible = "aspeed,new-vic";
 	     		interrupt-controller;
 			#interrupt-cells = <1>;
 			valid-sources = < 0xffffffff 0x0007ffff>;
 			reg = <0x1e6c0080 0x80>;
+		};
+
+		mac0: ethernet@1e660000 {
+			compatible = "faraday,ftgmac100", "aspeed,ast2400-mac";
+			reg = <0x1e660000 0x180>;
+			interrupts = <2>;
+			use-nc-si;
 		};
 
 		apb {
