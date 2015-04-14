@@ -1,0 +1,162 @@
+/dts-v1/;
+
+#include "skeleton.dtsi"
+
+/ {
+	model = "Palmetto BMC";
+	compatible = "tyan,palmetto-bmc", "aspeed,ast2400";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	interrupt-parent = <&vic>;
+
+	aliases {
+		serial0 = &uart5;
+	};
+
+	chosen {
+		stdout-path = &uart5;
+		bootargs = "console=ttyS4,38400";
+	};
+
+	memory {
+		reg = < 0x40000000 0x10000000 >;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			compatible = "arm,arm926ej-s";
+			device_type = "cpu";
+			reg = <0>;
+		};
+	};
+
+	// FIXME
+	clocks {
+		// Do a proper driver... for now, we know the straps
+		// and uboot config on palmetto are:
+		// - CLKIN is 48Mhz
+		// - HPLL is 384Mhz
+		// - CPU:AHB is strapped 2:1
+		// - PCLK is HPLL/8 = 48Mhz
+		clk_apb: clk_apb {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <48000000>;
+		};
+		clk_hpll: clk_hpll {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <384000000>;
+		};
+	};
+
+	ahb {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+
+		vic: interrupt-controller@1e6c0080 {
+			compatible = "aspeed,new-vic";
+	     		interrupt-controller;
+			#interrupt-cells = <1>;
+			valid-sources = < 0xffffffff 0x0007ffff>;
+			reg = <0x1e6c0080 0x80>;
+		};
+
+		apb {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			sram@1e72000 {
+				compatible = "mmio-sram";
+				reg = <0x1e72000 0x8000>;	// 32K
+			};
+
+			syscon: syscon@1e6e2000 {
+				compatible = "aspeed,syscon", "syscon";
+				reg = <0x1e6e2000 0x1a8>;
+				interrupts = <19>;
+				clocks = <&clk_apb>;
+				status = "okay";
+			};
+
+			wdt: wdt@1e785000 {
+				compatible = "aspeed,wdt", "wdt";
+				reg = <0x1e785000 0x1c4>;
+				interrupts = <27>;
+				clocks = <&clk_apb>;
+			};
+
+			rtc: rtc@1e781000 {
+				compatible = "aspeed,rtc";
+				reg = <0x1e781000 0x18>;
+			};
+
+			timer: timer@98400000 {
+				compatible = "aspeed,timer";
+				reg = <0x1e782000 0x90>;
+				// The moxart_timer driver registers only one interrupt
+				// and assumes it's for timer 1
+				//interrupts = <16 17 18 35 36 37 38 39>;
+				interrupts = <16>;
+				clocks = <&clk_apb>;
+			};
+
+			uart1: serial@1e783000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e783000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <9>;
+			       clock-frequency = < 1843200 >;
+			       no-loopback-test;
+			};
+			uart2: serial@1e78d000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e78d000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <32>;
+			       clock-frequency = < 1843200 >;
+			       no-loopback-test;
+			};
+			/* APSS UART */
+			uart3: serial@1e78e000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e78e000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <33>;
+			       clock-frequency = < 1843200 >;
+			       no-loopback-test;
+			};
+
+			/* Host UART */
+			uart4: serial@1e78f000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e78f000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <34>;
+			       clock-frequency = < 1843200 >;
+			       current-speed = < 115200 >;
+			       no-loopback-test;
+			};
+#if 1
+			/* BMC UART */
+			uart5: serial@1e784000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e784000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <10>;
+			       clock-frequency = < 1843200 >;
+			       current-speed = < 38400 >;
+			       no-loopback-test;
+			};
+#endif
+		};
+	};
+};
