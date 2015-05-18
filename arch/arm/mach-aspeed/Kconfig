@@ -4,6 +4,8 @@ menuconfig ARCH_ASPEED
 	select CLKSRC_MMIO
 	select GENERIC_IRQ_CHIP
 	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_ASPEED
 	select PHYLIB if NETDEVICES
 	select MFD_SYSCON
 	select SRAM
