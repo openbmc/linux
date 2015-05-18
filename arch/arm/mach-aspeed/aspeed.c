@@ -161,15 +161,6 @@ static void __init aspeed_init_early(void)
 	udbg_uart_putc('\n');
 }
 
-static void aspeed_restart(enum reboot_mode mode, const char *cmd)
-{
-	// XXX Move that to WDT driver
-	writel(0x0010, AST_IO(AST_BASE_WDT | 0x04));
-	writel(0x0003, AST_IO(AST_BASE_WDT | 0x0c));
-	writel(0x4755, AST_IO(AST_BASE_WDT | 0x08));
-	for (;;);
-}
-
 static void __init aspeed_map_io(void)
 {
 	iotable_init(aspeed_io_desc, ARRAY_SIZE(aspeed_io_desc));
@@ -188,5 +179,4 @@ DT_MACHINE_START(aspeed_dt, "ASpeed SoC")
 	.init_early	= aspeed_init_early,
 	.init_machine	= aspeed_dt_init,
 	.dt_compat	= aspeed_dt_match,
-	.restart	= aspeed_restart,
 MACHINE_END
