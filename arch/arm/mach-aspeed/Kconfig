@@ -18,6 +18,7 @@ if ARCH_ASPEED
 config MACH_OPP_PALMETTO_BMC
 	bool "OpenPower Palmetto"
 	depends on ARCH_ASPEED
+	select RTC_DRV_ASPEED
 	help
 	  Say Y here if you intend to run this kernel on the BMC
 	  of an OpenPower "Palmetto" eval board
