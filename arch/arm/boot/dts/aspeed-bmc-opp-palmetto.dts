@@ -109,6 +109,12 @@
 				clocks = <&clk_apb>;
 			};
 
+			gpio: gpio@1e780000 {
+			       compatible = "aspeed,ast2400-gpio";
+			       reg = <0x1e780000 0x1000>;
+			       interrupts = <20>;
+			};
+
 			uart1: serial@1e783000 {
 			       compatible = "ns16550a";
 			       reg = <0x1e783000 0x1000>;
@@ -157,6 +163,16 @@
 			       no-loopback-test;
 			};
 #endif
+
+			uart6: serial@1e787000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e787000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <10>;
+			       clock-frequency = < 1843200 >;
+			       current-speed = < 38400 >;
+			       no-loopback-test;
+			};
 		};
 	};
 };
