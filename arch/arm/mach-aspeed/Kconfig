@@ -6,6 +6,7 @@ menuconfig ARCH_ASPEED
 	select ARCH_REQUIRE_GPIOLIB
 	select PINCTRL
 	select PINCTRL_ASPEED
+	select I2C_ASPEED
 	select PHYLIB if NETDEVICES
 	select MFD_SYSCON
 	select SRAM
