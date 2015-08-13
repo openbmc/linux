@@ -1,0 +1,10 @@
+#
+# Configuration for NCSI support
+#
+
+config NET_NCSI
+	bool "NCSI interface support (EXPERIMENTAL)"
+	depends on INET
+	---help---
+	  This module provides NCSI (Network Controller Sideband Interface)
+	  support.

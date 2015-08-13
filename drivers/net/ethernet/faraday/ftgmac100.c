@@ -31,6 +31,7 @@
 #include <linux/phy.h>
 #include <linux/platform_device.h>
 #include <net/ip.h>
+#include <net/ncsi.h>
 
 #include "ftgmac100.h"
 
@@ -68,6 +69,7 @@ struct ftgmac100 {
 
 	struct net_device *netdev;
 	struct device *dev;
+	struct ncsi_dev *ndev;
 	struct napi_struct napi;
 
 	struct mii_bus *mii_bus;
@@ -75,7 +77,7 @@ struct ftgmac100 {
 	struct phy_device *phydev;
 	int old_speed;
 
-	bool use_nc_si;
+	bool use_ncsi;
 };
 
 static int ftgmac100_alloc_rx_page(struct ftgmac100 *priv,
@@ -1038,7 +1040,11 @@ static irqreturn_t ftgmac100_interrupt(int irq, void *dev_id)
 	struct net_device *netdev = dev_id;
 	struct ftgmac100 *priv = netdev_priv(netdev);
 
-	if (likely(netif_running(netdev))) {
+	/* When running in NCSI mode, the interface should be
+	 * ready to receive or transmit NCSI packet before it's
+	 * opened.
+	 */
+	if (likely(priv->use_ncsi || netif_running(netdev))) {
 		/* Disable interrupts for polling */
 		iowrite32(0, priv->base + FTGMAC100_OFFSET_IER);
 		napi_schedule(&priv->napi);
@@ -1150,20 +1156,30 @@ static int ftgmac100_open(struct net_device *netdev)
 		goto err_hw;
 
 	ftgmac100_init_hw(priv);
-	ftgmac100_start_hw(priv, priv->use_nc_si ? 100 : 10);
+	ftgmac100_start_hw(priv, priv->use_ncsi ? 100 : 10);
 
 	if (priv->phydev)
 		phy_start(priv->phydev);
-	else if (priv->use_nc_si)
+	else if (priv->use_ncsi)
 		netif_carrier_on(priv->netdev);
 
 	napi_enable(&priv->napi);
 	netif_start_queue(netdev);
-
-	/* enable all interrupts */
 	iowrite32(INT_MASK_ALL_ENABLED, priv->base + FTGMAC100_OFFSET_IER);
+
+	/* Start the NCSI device */
+	if (priv->use_ncsi){
+		err = ncsi_start_dev(priv->ndev);
+		if (err)
+			goto err_ncsi;
+	}
+
 	return 0;
 
+err_ncsi:
+	napi_disable(&priv->napi);
+	netif_stop_queue(netdev);
+	iowrite32(0, priv->base + FTGMAC100_OFFSET_IER);
 err_hw:
 	free_irq(priv->irq, netdev);
 err_irq:
@@ -1172,7 +1188,7 @@ err_alloc:
 	return err;
 }
 
-static int ftgmac100_stop(struct net_device *netdev)
+static int ftgmac100_stop_dev(struct net_device *netdev)
 {
 	struct ftgmac100 *priv = netdev_priv(netdev);
 
@@ -1189,6 +1205,19 @@ static int ftgmac100_stop(struct net_device *netdev)
 	ftgmac100_free_buffers(priv);
 
 	return 0;
+}
+
+static int ftgmac100_stop(struct net_device *netdev)
+{
+	struct ftgmac100 *priv = netdev_priv(netdev);
+
+	/* Stop NCSI device */
+	if (priv->use_ncsi) {
+		ncsi_stop_dev(priv->ndev);
+		return 0;
+	}
+
+	return ftgmac100_stop_dev(netdev);
 }
 
 static int ftgmac100_hard_start_xmit(struct sk_buff *skb,
@@ -1275,7 +1304,7 @@ err_alloc_mdiobus:
 
 static void ftgmac100_destroy_mdio(struct ftgmac100 *priv)
 {
-	if (!priv->use_nc_si)
+	if (!priv->use_ncsi)
 		return;
 	phy_disconnect(priv->phydev);
 	mdiobus_unregister(priv->mii_bus);
@@ -1291,6 +1320,22 @@ static const struct net_device_ops ftgmac100_netdev_ops = {
 	.ndo_do_ioctl		= ftgmac100_do_ioctl,
 };
 
+static void ftgmac100_ncsi_handler(struct ncsi_dev *nd)
+{
+	struct net_device *netdev = nd->nd_dev;
+
+	if (nd->nd_state != ncsi_dev_state_functional)
+		return;
+
+	if (nd->nd_link_up) {
+		pr_info("NCSI dev is up\n");
+		netif_start_queue(netdev);
+	} else {
+		pr_info("NCSI dev is down\n");
+		ftgmac100_stop_dev(netdev);
+	}
+}
+
 /******************************************************************************
  * struct platform_driver functions
  *****************************************************************************/
@@ -1300,7 +1345,7 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	int irq;
 	struct net_device *netdev;
 	struct ftgmac100 *priv;
-	int err;
+	int err = 0;
 
 	if (!pdev)
 		return -ENODEV;
@@ -1320,16 +1365,31 @@ static int ftgmac100_probe(struct platform_device *pdev)
 		goto err_alloc_etherdev;
 	}
 
+	/* Check for NCSI mode */
+	priv = netdev_priv(netdev);
 	SET_NETDEV_DEV(netdev, &pdev->dev);
+	if (pdev->dev.of_node &&
+	    of_get_property(pdev->dev.of_node, "use-nc-si", NULL)) {
+		dev_info(&pdev->dev, "Using NCSI interface\n");
+		priv->phydev = NULL;
+		priv->use_ncsi = true;
+	} else {
+		priv->use_ncsi = false;
+	}
 
+	/* When the MAC is running in NCSI mode, the off-load
+	 * IP/UDP/TCP checksum functionality doesn't work properly.
+	 */
 	netdev->ethtool_ops = &ftgmac100_ethtool_ops;
 	netdev->netdev_ops = &ftgmac100_netdev_ops;
-	netdev->features = NETIF_F_IP_CSUM | NETIF_F_GRO;
+	if (priv->use_ncsi)
+		netdev->features = NETIF_F_GRO;
+	else
+		netdev->features = NETIF_F_IP_CSUM | NETIF_F_GRO;
 
 	platform_set_drvdata(pdev, netdev);
 
 	/* setup private data */
-	priv = netdev_priv(netdev);
 	priv->netdev = netdev;
 	priv->dev = &pdev->dev;
 
@@ -1356,24 +1416,19 @@ static int ftgmac100_probe(struct platform_device *pdev)
 
 	priv->irq = irq;
 
-	/* Check for NC-SI mode */
-	if (pdev->dev.of_node &&
-	    of_get_property(pdev->dev.of_node, "use-nc-si", NULL))
-		priv->use_nc_si = true;
-	else
-		priv->use_nc_si = false;
+	/* Read MAC address or setup a new one */
+	ftgmac100_setup_mac(priv);
 
-	/* If we use NC-SI, we need to set that up, which isn't implemented yet
-	 * so we pray things were setup by the bootloader and just mark our link
+	/* so we pray things were setup by the bootloader and just mark our link
 	 * as up (otherwise we can't get packets through).
 	 *
 	 * Eventually, we'll have a proper NC-SI stack as a helper we can
 	 * instanciate
 	 */
-	if (priv->use_nc_si) {
-		/* XXX */
-		priv->phydev = NULL;
-		dev_info(&pdev->dev, "Using NC-SI interface\n");
+	if (priv->use_ncsi) {
+		priv->ndev = ncsi_register_dev(netdev, ftgmac100_ncsi_handler);
+		if (!priv->ndev)
+			goto err_ncsi_dev;
 	} else {
 		err = ftgmac100_setup_mdio(priv);
 
@@ -1383,9 +1438,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 		if (err)
 			dev_warn(&pdev->dev, "Error %d setting up MDIO\n", err);
 	}
-
-	/* Read MAC address or setup a new one */
-	ftgmac100_setup_mac(priv);
 
 	/* Register network device */
 	err = register_netdev(netdev);
@@ -1399,7 +1451,11 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	return 0;
 
 err_register_netdev:
-	ftgmac100_destroy_mdio(priv);
+	if (!priv->use_ncsi)
+		ftgmac100_destroy_mdio(priv);
+	else
+		ncsi_unregister_dev(priv->ndev);
+err_ncsi_dev:
 	iounmap(priv->base);
 err_ioremap:
 	release_resource(priv->res);
