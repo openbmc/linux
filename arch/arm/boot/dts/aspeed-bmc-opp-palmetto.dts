@@ -85,9 +85,9 @@
 				reg = <0x1e72000 0x8000>;	// 32K
 			};
 
-			i2c: i2c@1e78a000 {
+			i2c0: i2c@1e78a040 {
 				compatible = "aspeed,ast2400-i2c", "i2c";
-				reg = <0x1e78a000 0x40>, <0x1e78a040 0x40>;
+				reg = <0x1e78a040 0x40>, <0x1e78a000 0x40>;
 				interrupts = <12>;
 				clocks = <&clk_apb>;
 				clock-frequency = <100000>;
@@ -99,6 +99,14 @@
 					reg = <0x68>;
 					// interrupts = <GPIOF0>
 				};
+			};
+
+			i2c1: i2c@1e78a080 {
+				compatible = "aspeed,ast2400-i2c", "i2c";
+				reg = <0x1e78a080 0x40>, <0x1e78a000 0x40>;
+				interrupts = <12>;
+				clocks = <&clk_apb>;
+				clock-frequency = <100000>;
 			};
 
 			syscon: syscon@1e6e2000 {
