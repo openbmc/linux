@@ -85,6 +85,11 @@
 				reg = <0x1e72000 0x8000>;	// 32K
 			};
 
+			ibt@1e789150 {
+				compatible = "bt-host";
+				reg = <0x1e789140 0x18>;
+			};
+
 			i2c0: i2c@1e78a040 {
 				compatible = "aspeed,ast2400-i2c", "i2c";
 				reg = <0x1e78a040 0x40>, <0x1e78a000 0x40>;
