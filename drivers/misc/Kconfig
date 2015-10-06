@@ -525,6 +525,11 @@ config VEXPRESS_SYSCFG
 	  bus. System Configuration interface is one of the possible means
 	  of generating transactions on this bus.
 
+config ASPEED_BT_IPMI_HOST
+	tristate "BT IPMI host driver"
+	help
+	  Support for the Aspeed BT ipmi host.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
