@@ -150,4 +150,10 @@ struct ncsi_req *ncsi_alloc_req(struct ncsi_dev_priv *ndp);
 void ncsi_free_req(struct ncsi_req *nr, bool check, bool timeout);
 struct ncsi_dev *ncsi_find_dev(struct net_device *dev);
 
+/* Packet handlers */
+int ncsi_xmit_cmd(struct ncsi_cmd_arg *nca);
+int ncsi_rcv_rsp(struct sk_buff *skb, struct net_device *dev,
+		 struct packet_type *pt, struct net_device *orig_dev);
+int ncsi_aen_handler(struct ncsi_dev_priv *ndp, struct sk_buff *skb);
+
 #endif /* __NCSI_INTERNAL_H__ */
