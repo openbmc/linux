@@ -60,6 +60,7 @@ static int ncsi_validate_aen_pkt(struct ncsi_aen_pkt_hdr *h,
 static int ncsi_aen_handler_lsc(struct ncsi_dev_priv *ndp,
 				struct ncsi_aen_pkt_hdr *h)
 {
+	struct ncsi_dev *nd = &ndp->ndp_ndev;
 	struct ncsi_aen_lsc_pkt *lsc;
 	struct ncsi_channel *nc;
 	struct ncsi_channel_mode *ncm;
@@ -88,7 +89,7 @@ static int ncsi_aen_handler_lsc(struct ncsi_dev_priv *ndp,
 	 * we have to choose another channel to be active one.
 	 */
 	ndp->ndp_flags |= NCSI_DEV_PRIV_FLAG_CHANGE_ACTIVE;
-	/* FIXME: Stop active channel and choose another one */
+	ncsi_stop_dev(nd);
 
 	return 0;
 }
@@ -96,6 +97,7 @@ static int ncsi_aen_handler_lsc(struct ncsi_dev_priv *ndp,
 static int ncsi_aen_handler_cr(struct ncsi_dev_priv *ndp,
 			       struct ncsi_aen_pkt_hdr *h)
 {
+	struct ncsi_dev *nd = &ndp->ndp_ndev;
 	struct ncsi_channel *nc;
 	int ret;
 
@@ -113,7 +115,7 @@ static int ncsi_aen_handler_cr(struct ncsi_dev_priv *ndp,
 	    ndp->ndp_active_channel != nc)
 		return 0;
 
-	/* FIXME: Reconfigure active channel */
+	ncsi_config_dev(nd);
 
 	return 0;
 }
@@ -121,6 +123,7 @@ static int ncsi_aen_handler_cr(struct ncsi_dev_priv *ndp,
 static int ncsi_aen_handler_hncdsc(struct ncsi_dev_priv *ndp,
 				   struct ncsi_aen_pkt_hdr *h)
 {
+	struct ncsi_dev *nd = &ndp->ndp_ndev;
 	struct ncsi_channel *nc;
 	struct ncsi_channel_mode *ncm;
 	struct ncsi_aen_hncdsc_pkt *hncdsc;
@@ -149,7 +152,7 @@ static int ncsi_aen_handler_hncdsc(struct ncsi_dev_priv *ndp,
 	 * is down on the active channel.
 	 */
 	ndp->ndp_flags |= NCSI_DEV_PRIV_FLAG_CHANGE_ACTIVE;
-	/* FIXME: Stop and choose another channel as active one */
+	ncsi_stop_dev(nd);
 
 	return 0;
 }

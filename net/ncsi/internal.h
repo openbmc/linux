@@ -149,6 +149,7 @@ void ncsi_find_package_and_channel(struct ncsi_dev_priv *ndp,
 struct ncsi_req *ncsi_alloc_req(struct ncsi_dev_priv *ndp);
 void ncsi_free_req(struct ncsi_req *nr, bool check, bool timeout);
 struct ncsi_dev *ncsi_find_dev(struct net_device *dev);
+int ncsi_config_dev(struct ncsi_dev *nd);
 
 /* Packet handlers */
 int ncsi_xmit_cmd(struct ncsi_cmd_arg *nca);
