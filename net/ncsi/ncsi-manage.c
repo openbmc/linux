@@ -351,6 +351,13 @@ void ncsi_free_req(struct ncsi_req *nr, bool check, bool timeout)
 	nr->nr_used = false;
 	spin_unlock(&ndp->ndp_req_lock);
 
+	/* If the NCSI command was sent because of netlink
+	 * messages, we need reply with the result or error.
+	 */
+	if (check && cmd && NCSI_CB(cmd).nsp_valid)
+		ncsi_netlink_reply(&NCSI_CB(cmd).nsp_nlh,
+				   NCSI_CB(cmd).nsp_portid, timeout);
+
 	if (check && cmd && atomic_dec_return(&ndp->ndp_pending_reqs) == 0)
 		schedule_work(&ndp->ndp_work);
 	/* Release command and response */

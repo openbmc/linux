@@ -157,4 +157,9 @@ int ncsi_rcv_rsp(struct sk_buff *skb, struct net_device *dev,
 		 struct packet_type *pt, struct net_device *orig_dev);
 int ncsi_aen_handler(struct ncsi_dev_priv *ndp, struct sk_buff *skb);
 
+/* Netlink */
+int __net_init ncsi_netlink_init(struct net *net);
+void __net_exit ncsi_netlink_exit(struct net *net);
+void ncsi_netlink_reply(struct nlmsghdr *h,
+			unsigned int portid, bool timeout);
 #endif /* __NCSI_INTERNAL_H__ */
