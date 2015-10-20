@@ -14,6 +14,7 @@
 #include <linux/miscdevice.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/bt-host.h>
 
 #define DEVICE_NAME	"bt-host"
 
@@ -106,6 +107,11 @@ static void bt_write(struct bt_host *bt_host, u8 c)
 	bt_outb(bt_host, c, BT_BMC2HOST);
 }
 
+static void set_sms_atn(struct bt_host *bt_host)
+{
+	bt_outb(bt_host, BT_CTRL_SMS_ATN, BT_CTRL);
+}
+
 static struct bt_host *file_bt_host(struct file *file)
 {
 	return container_of(file->private_data, struct bt_host, miscdev);
@@ -192,6 +198,18 @@ static ssize_t bt_host_write(struct file *file, const char __user *buf,
 	return p - buf;
 }
 
+static long bt_host_ioctl(struct file *file, unsigned int cmd,
+		unsigned long param)
+{
+	struct bt_host *bt_host = file_bt_host(file);
+	switch (cmd) {
+	case BT_HOST_IOCTL_SMS_ATN:
+		set_sms_atn(bt_host);
+		return 0;
+	}
+	return -EINVAL;
+}
+
 static int bt_host_release(struct inode *inode, struct file *file)
 {
 	struct bt_host *bt_host = file_bt_host(file);
@@ -223,6 +241,7 @@ static const struct file_operations bt_host_fops = {
 	.write		= bt_host_write,
 	.release	= bt_host_release,
 	.poll		= bt_host_poll,
+	.unlocked_ioctl	= bt_host_ioctl,
 };
 
 static void poll_timer(unsigned long data)
