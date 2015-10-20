@@ -80,11 +80,6 @@ static void clr_wr_ptr(struct bt_host *bt_host)
 	bt_outb(bt_host, BT_CTRL_CLR_WR_PTR, BT_CTRL);
 }
 
-static int h2b_atn(struct bt_host *bt_host)
-{
-	return !!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_H2B_ATN);
-}
-
 static void clr_h2b_atn(struct bt_host *bt_host)
 {
 	bt_outb(bt_host, BT_CTRL_H2B_ATN, BT_CTRL);
@@ -104,16 +99,6 @@ static void clr_b_busy(struct bt_host *bt_host)
 static void set_b2h_atn(struct bt_host *bt_host)
 {
 	bt_outb(bt_host, BT_CTRL_B2H_ATN, BT_CTRL);
-}
-
-static int b2h_atn(struct bt_host *bt_host)
-{
-	return !!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_B2H_ATN);
-}
-
-static int h_busy(struct bt_host *bt_host)
-{
-	return !!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_H_BUSY);
 }
 
 static char bt_read(struct bt_host *bt_host)
@@ -258,7 +243,7 @@ static int bt_host_probe(struct platform_device *pdev)
 {
 	struct device *dev;
 	struct resource *res;
-	int rc, devno = MKDEV(MAJOR(bt_host_devt), 0);
+	int rc;
 
 	if (!pdev || !pdev->dev.of_node)
 		return -ENODEV;
