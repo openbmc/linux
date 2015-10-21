@@ -86,7 +86,7 @@
 				reg = <0x1e72000 0x8000>;	// 32K
 			};
 
-			ibt@1e789150 {
+			ibt@1e789140 {
 				compatible = "aspeed,bt-host";
 				reg = <0x1e789140 0x18>;
 			};
