@@ -45,8 +45,6 @@
 #define   BT_INTMASK_B2H_IRQ		0x02
 #define   BT_INTMASK_BMC_HWRST		0x80
 
-dev_t bt_host_devt;
-
 struct bt_host {
 	struct device		dev;
 	void			*base;
@@ -329,35 +327,7 @@ static struct platform_driver bt_host_driver = {
 	.remove = bt_host_remove,
 };
 
-static int __init bt_host_init(void)
-{
-	int rc;
-
-	rc = alloc_chrdev_region(&bt_host_devt, 0, BT_NUM_DEVS, "bt");
-	if (rc) {
-		pr_err("bt-host: Could not allocate chardev region\n");
-		return rc;
-	}
-
-	rc = platform_driver_register(&bt_host_driver);
-	if (rc) {
-		pr_err("bt-host: Could not register platform device\n");
-		goto out_chardev;
-	}
-
-	return 0;
-
-out_chardev:
-	unregister_chrdev_region(bt_host_devt, BT_NUM_DEVS);
-	return rc;
-}
-module_init(bt_host_init);
-
-static void __exit bt_host_exit(void)
-{
-	platform_driver_unregister(&bt_host_driver);
-}
-module_exit(bt_host_exit);
+module_platform_driver(bt_host_driver);
 
 MODULE_DEVICE_TABLE(of, bt_host_match);
 MODULE_LICENSE("GPL");
