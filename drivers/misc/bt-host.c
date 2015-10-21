@@ -15,7 +15,7 @@
 #include <linux/timer.h>
 #include <linux/jiffies.h>
 
-#define DEVICE_NAME	"bt"
+#define DEVICE_NAME	"bt-host"
 #define BT_NUM_DEVS	1
 
 #define BT_IO_BASE	0xe4
@@ -220,7 +220,7 @@ static const struct file_operations bt_host_fops = {
 
 static struct miscdevice bt_host_miscdev = {
 	.minor		= MISC_DYNAMIC_MINOR,
-	.name		= "bt",
+	.name		= DEVICE_NAME,
 	.fops		= &bt_host_fops,
 };
 
@@ -319,7 +319,7 @@ static const struct of_device_id bt_host_match[] = {
 
 static struct platform_driver bt_host_driver = {
 	.driver = {
-		.name		= "bt-host",
+		.name		= DEVICE_NAME,
 		.owner		= THIS_MODULE,
 		.of_match_table = bt_host_match,
 	},
