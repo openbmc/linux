@@ -51,7 +51,6 @@ struct bt_host {
 	void			*base;
 	int			open_count;
 	wait_queue_head_t	queue;
-	unsigned int		ctrl;
 	struct timer_list	poll_timer;
 };
 
@@ -247,7 +246,6 @@ static const struct file_operations bt_host_fops = {
 static void poll_timer(unsigned long data)
 {
 	struct bt_host *bt_host = (void *)data;
-	bt_host->ctrl = bt_inb(bt_host, BT_CTRL);
 	bt_host->poll_timer.expires += msecs_to_jiffies(500);
 	wake_up(&bt_host->queue);
 	add_timer(&bt_host->poll_timer);
