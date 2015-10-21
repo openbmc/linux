@@ -87,7 +87,7 @@
 			};
 
 			ibt@1e789150 {
-				compatible = "bt-host";
+				compatible = "aspeed,bt-host";
 				reg = <0x1e789140 0x18>;
 			};
 

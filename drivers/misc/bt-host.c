@@ -313,7 +313,7 @@ static int bt_host_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id bt_host_match[] = {
-	{ .compatible = "bt-host" },
+	{ .compatible = "aspeed,bt-host" },
 	{ },
 };
 
