@@ -9,7 +9,6 @@
 #include <linux/device.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/cdev.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/miscdevice.h>
@@ -50,9 +49,7 @@ dev_t bt_host_devt;
 
 struct bt_host {
 	struct device dev;
-	struct cdev cdev;
 	void *base;
-	int open_count;
 	wait_queue_head_t queue;
 	unsigned int ctrl;
 	struct timer_list poll_timer;
