@@ -47,6 +47,7 @@
 
 struct bt_host {
 	struct device		dev;
+	struct miscdevice	miscdev;
 	void			*base;
 	int			open_count;
 	wait_queue_head_t	queue;
@@ -218,12 +219,6 @@ static const struct file_operations bt_host_fops = {
 	.poll		= bt_host_poll,
 };
 
-static struct miscdevice bt_host_miscdev = {
-	.minor		= MISC_DYNAMIC_MINOR,
-	.name		= DEVICE_NAME,
-	.fops		= &bt_host_fops,
-};
-
 static void poll_timer(unsigned long data)
 {
 	bt_host->ctrl = bt_inb(bt_host, BT_CTRL);
@@ -253,6 +248,8 @@ static int bt_host_probe(struct platform_device *pdev)
 	if (!bt_host)
 		return -ENOMEM;
 
+	dev_set_drvdata(&pdev->dev, bt_host);
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(dev, "Unable to find resources\n");
@@ -269,8 +266,11 @@ static int bt_host_probe(struct platform_device *pdev)
 
 	init_waitqueue_head(&bt_host->queue);
 
-	bt_host_miscdev.parent = dev;
-	rc = misc_register(&bt_host_miscdev);
+	bt_host->miscdev.minor	= MISC_DYNAMIC_MINOR,
+	bt_host->miscdev.name	= DEVICE_NAME,
+	bt_host->miscdev.fops	= &bt_host_fops,
+	bt_host->miscdev.parent = dev;
+	rc = misc_register(&bt_host->miscdev);
 	if (rc) {
 		dev_err(dev, "Unable to register device\n");
 		goto out_unmap;
@@ -303,8 +303,9 @@ out_free:
 
 static int bt_host_remove(struct platform_device *pdev)
 {
+	struct bt_host *bt_host = dev_get_drvdata(&pdev->dev);
 	del_timer_sync(&bt_host->poll_timer);
-	misc_deregister(&bt_host_miscdev);
+	misc_deregister(&bt_host->miscdev);
 	devm_iounmap(&pdev->dev, bt_host->base);
 	devm_kfree(&pdev->dev, bt_host);
 	bt_host = NULL;
