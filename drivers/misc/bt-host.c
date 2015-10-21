@@ -58,12 +58,12 @@ struct bt_host {
 
 static struct bt_host *bt_host;
 
-static char bt_inb(struct bt_host *bt_host, int reg)
+static u8 bt_inb(struct bt_host *bt_host, int reg)
 {
 	return ioread8(bt_host->base + reg);
 }
 
-static void bt_outb(struct bt_host *bt_host, char data, int reg)
+static void bt_outb(struct bt_host *bt_host, u8 data, int reg)
 {
 	iowrite8(data, bt_host->base + reg);
 }
@@ -100,14 +100,12 @@ static void set_b2h_atn(struct bt_host *bt_host)
 	bt_outb(bt_host, BT_CTRL_B2H_ATN, BT_CTRL);
 }
 
-static char bt_read(struct bt_host *bt_host)
+static u8 bt_read(struct bt_host *bt_host)
 {
-	char result = bt_inb(bt_host, BT_BMC2HOST);
-
-	return result;
+	return bt_inb(bt_host, BT_BMC2HOST);
 }
 
-static void bt_write(struct bt_host *bt_host, char c)
+static void bt_write(struct bt_host *bt_host, u8 c)
 {
 	bt_outb(bt_host, c, BT_BMC2HOST);
 }
@@ -125,7 +123,7 @@ static ssize_t bt_host_read(struct file *file, char __user *buf,
 				size_t count, loff_t *ppos)
 {
 	char __user *p = buf;
-	char len;
+	u8 len;
 
 	if (!access_ok(VERIFY_WRITE, buf, count))
 		return -EFAULT;
@@ -162,7 +160,7 @@ static ssize_t bt_host_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *ppos)
 {
 	const char __user *p = buf;
-	char c;
+	u8 c;
 
 	if (!access_ok(VERIFY_READ, buf, count))
 		return -EFAULT;
