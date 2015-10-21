@@ -219,10 +219,12 @@ static int bt_host_release(struct inode *inode, struct file *file)
 static unsigned int bt_host_poll(struct file *file, poll_table *wait)
 {
 	struct bt_host *bt_host = file_bt_host(file);
-	uint8_t ctrl = bt_inb(bt_host, BT_CTRL);
 	unsigned int mask = 0;
+	uint8_t ctrl;
 
 	poll_wait(file, &bt_host->queue, wait);
+
+	ctrl = bt_inb(bt_host, BT_CTRL);
 
 	if (ctrl & BT_CTRL_H2B_ATN)
 		mask |= POLLIN;
