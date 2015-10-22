@@ -15,6 +15,7 @@
 #include <linux/miscdevice.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/bt-host.h>
 
 #define DEVICE_NAME	"bt"
 #define BT_NUM_DEVS	1
@@ -99,6 +100,11 @@ static void clr_b_busy(struct bt_host *bt_host)
 {
 	if (bt_inb(bt_host, BT_CTRL) & BT_CTRL_B_BUSY)
 		bt_outb(bt_host, BT_CTRL_B_BUSY, BT_CTRL);
+}
+
+static void set_sms_atn(struct bt_host *bt_host)
+{
+	bt_outb(bt_host, BT_CTRL_SMS_ATN, BT_CTRL);
 }
 
 static void set_b2h_atn(struct bt_host *bt_host)
@@ -231,6 +237,16 @@ static unsigned int bt_host_poll(struct file *file, poll_table *wait)
 	return mask;
 }
 
+static long bt_host_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case BT_HOST_IOCTL_SMS_ATN:
+		set_sms_atn(bt_host);
+		return 0;
+	default:
+		return -ENOIOCTLCMD;
+	}
+}
 static const struct file_operations bt_host_fops = {
 	.owner		= THIS_MODULE,
 	.open		= bt_host_open,
@@ -238,6 +254,7 @@ static const struct file_operations bt_host_fops = {
 	.write		= bt_host_write,
 	.release	= bt_host_release,
 	.poll		= bt_host_poll,
+	.unlocked_ioctl	= bt_host_ioctl,
 };
 
 static struct miscdevice bt_host_miscdev = {
