@@ -9,15 +9,14 @@
 #include <linux/device.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/cdev.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/miscdevice.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/bt-host.h>
 
-#define DEVICE_NAME	"bt"
-#define BT_NUM_DEVS	1
+#define DEVICE_NAME	"bt-host"
 
 #define BT_IO_BASE	0xe4
 #define BT_IRQ		10
@@ -46,26 +45,21 @@
 #define   BT_INTMASK_B2H_IRQ		0x02
 #define   BT_INTMASK_BMC_HWRST		0x80
 
-dev_t bt_host_devt;
-
 struct bt_host {
-	struct device dev;
-	struct cdev cdev;
-	void *base;
-	int open_count;
-	wait_queue_head_t queue;
-	unsigned int ctrl;
-	struct timer_list poll_timer;
+	struct device		dev;
+	struct miscdevice	miscdev;
+	void			*base;
+	int			open_count;
+	wait_queue_head_t	queue;
+	struct timer_list	poll_timer;
 };
 
-static struct bt_host *bt_host;
-
-static char bt_inb(struct bt_host *bt_host, int reg)
+static u8 bt_inb(struct bt_host *bt_host, int reg)
 {
 	return ioread8(bt_host->base + reg);
 }
 
-static void bt_outb(struct bt_host *bt_host, char data, int reg)
+static void bt_outb(struct bt_host *bt_host, u8 data, int reg)
 {
 	iowrite8(data, bt_host->base + reg);
 }
@@ -80,11 +74,6 @@ static void clr_wr_ptr(struct bt_host *bt_host)
 	bt_outb(bt_host, BT_CTRL_CLR_WR_PTR, BT_CTRL);
 }
 
-static int h2b_atn(struct bt_host *bt_host)
-{
-	return !!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_H2B_ATN);
-}
-
 static void clr_h2b_atn(struct bt_host *bt_host)
 {
 	bt_outb(bt_host, BT_CTRL_H2B_ATN, BT_CTRL);
@@ -93,7 +82,8 @@ static void clr_h2b_atn(struct bt_host *bt_host)
 static void set_b_busy(struct bt_host *bt_host)
 {
 	if (!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_B_BUSY))
-		bt_outb(bt_host, BT_CTRL_B_BUSY, BT_CTRL);}
+		bt_outb(bt_host, BT_CTRL_B_BUSY, BT_CTRL);
+}
 
 static void clr_b_busy(struct bt_host *bt_host)
 {
@@ -106,31 +96,29 @@ static void set_b2h_atn(struct bt_host *bt_host)
 	bt_outb(bt_host, BT_CTRL_B2H_ATN, BT_CTRL);
 }
 
-static int b2h_atn(struct bt_host *bt_host)
+static u8 bt_read(struct bt_host *bt_host)
 {
-	return !!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_B2H_ATN);
+	return bt_inb(bt_host, BT_BMC2HOST);
 }
 
-static int h_busy(struct bt_host *bt_host)
-{
-	return !!(bt_inb(bt_host, BT_CTRL) & BT_CTRL_H_BUSY);
-}
-
-static char bt_read(struct bt_host *bt_host)
-{
-	char result = bt_inb(bt_host, BT_BMC2HOST);
-
-	return result;
-}
-
-static void bt_write(struct bt_host *bt_host, char c)
+static void bt_write(struct bt_host *bt_host, u8 c)
 {
 	bt_outb(bt_host, c, BT_BMC2HOST);
 }
 
+static void set_sms_atn(struct bt_host *bt_host)
+{
+	bt_outb(bt_host, BT_CTRL_SMS_ATN, BT_CTRL);
+}
+
+static struct bt_host *file_bt_host(struct file *file)
+{
+	return container_of(file->private_data, struct bt_host, miscdev);
+}
+
 static int bt_host_open(struct inode *inode, struct file *file)
 {
-	file->private_data = bt_host;
+	struct bt_host *bt_host = file_bt_host(file);
 
 	clr_b_busy(bt_host);
 
@@ -138,10 +126,11 @@ static int bt_host_open(struct inode *inode, struct file *file)
 }
 
 static ssize_t bt_host_read(struct file *file, char __user *buf,
-			    size_t count, loff_t *ppos)
+				size_t count, loff_t *ppos)
 {
+	struct bt_host *bt_host = file_bt_host(file);
 	char __user *p = buf;
-	char len;
+	u8 len;
 
 	if (!access_ok(VERIFY_WRITE, buf, count))
 		return -EFAULT;
@@ -149,8 +138,7 @@ static ssize_t bt_host_read(struct file *file, char __user *buf,
 	WARN_ON(*ppos);
 
 	if (wait_event_interruptible(bt_host->queue,
-				     bt_inb(bt_host, BT_CTRL)
-				     & BT_CTRL_H2B_ATN))
+				bt_inb(bt_host, BT_CTRL) & BT_CTRL_H2B_ATN))
 		return -ERESTARTSYS;
 
 	set_b_busy(bt_host);
@@ -176,10 +164,11 @@ static ssize_t bt_host_read(struct file *file, char __user *buf,
 }
 
 static ssize_t bt_host_write(struct file *file, const char __user *buf,
-			     size_t count, loff_t *ppos)
+				size_t count, loff_t *ppos)
 {
+	struct bt_host *bt_host = file_bt_host(file);
 	const char __user *p = buf;
-	char c;
+	u8 c;
 
 	if (!access_ok(VERIFY_READ, buf, count))
 		return -EFAULT;
@@ -189,9 +178,9 @@ static ssize_t bt_host_write(struct file *file, const char __user *buf,
 	/* There's no interrupt for clearing host busy so we have to
 	 * poll */
 	if (wait_event_interruptible(bt_host->queue,
-				     !(bt_inb(bt_host, BT_CTRL) &
-				       (BT_CTRL_H_BUSY | BT_CTRL_B2H_ATN))))
-	    return -ERESTARTSYS;
+				!(bt_inb(bt_host, BT_CTRL) &
+					(BT_CTRL_H_BUSY | BT_CTRL_B2H_ATN))))
+		return -ERESTARTSYS;
 
 	clr_wr_ptr(bt_host);
 
@@ -208,19 +197,34 @@ static ssize_t bt_host_write(struct file *file, const char __user *buf,
 	return p - buf;
 }
 
+static long bt_host_ioctl(struct file *file, unsigned int cmd,
+		unsigned long param)
+{
+	struct bt_host *bt_host = file_bt_host(file);
+	switch (cmd) {
+	case BT_HOST_IOCTL_SMS_ATN:
+		set_sms_atn(bt_host);
+		return 0;
+	}
+	return -EINVAL;
+}
+
 static int bt_host_release(struct inode *inode, struct file *file)
 {
-       set_b_busy(bt_host);
-
-       return 0;
+	struct bt_host *bt_host = file_bt_host(file);
+	set_b_busy(bt_host);
+	return 0;
 }
 
 static unsigned int bt_host_poll(struct file *file, poll_table *wait)
 {
-	uint8_t ctrl = bt_inb(bt_host, BT_CTRL);
+	struct bt_host *bt_host = file_bt_host(file);
 	unsigned int mask = 0;
+	uint8_t ctrl;
 
 	poll_wait(file, &bt_host->queue, wait);
+
+	ctrl = bt_inb(bt_host, BT_CTRL);
 
 	if (ctrl & BT_CTRL_H2B_ATN)
 		mask |= POLLIN;
@@ -238,17 +242,12 @@ static const struct file_operations bt_host_fops = {
 	.write		= bt_host_write,
 	.release	= bt_host_release,
 	.poll		= bt_host_poll,
-};
-
-static struct miscdevice bt_host_miscdev = {
-	.minor		= MISC_DYNAMIC_MINOR,
-	.name		= "bt",
-	.fops  		= &bt_host_fops,
+	.unlocked_ioctl	= bt_host_ioctl,
 };
 
 static void poll_timer(unsigned long data)
 {
-	bt_host->ctrl = bt_inb(bt_host, BT_CTRL);
+	struct bt_host *bt_host = (void *)data;
 	bt_host->poll_timer.expires += msecs_to_jiffies(500);
 	wake_up(&bt_host->queue);
 	add_timer(&bt_host->poll_timer);
@@ -256,9 +255,10 @@ static void poll_timer(unsigned long data)
 
 static int bt_host_probe(struct platform_device *pdev)
 {
+	struct bt_host *bt_host;
 	struct device *dev;
 	struct resource *res;
-	int rc, devno = MKDEV(MAJOR(bt_host_devt), 0);
+	int rc;
 
 	if (!pdev || !pdev->dev.of_node)
 		return -ENODEV;
@@ -266,14 +266,11 @@ static int bt_host_probe(struct platform_device *pdev)
 	dev = &pdev->dev;
 	dev_info(dev, "Found bt host device\n");
 
-	if (bt_host) {
-		dev_err(dev, "Multiple bt hosts not supported\n");
-		return -ENOMEM;
-	}
-
 	bt_host = devm_kzalloc(dev, sizeof(*bt_host), GFP_KERNEL);
 	if (!bt_host)
 		return -ENOMEM;
+
+	dev_set_drvdata(&pdev->dev, bt_host);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -283,7 +280,7 @@ static int bt_host_probe(struct platform_device *pdev)
 	}
 
 	bt_host->base = devm_ioremap_nocache(&pdev->dev, res->start,
-					     resource_size(res));
+						resource_size(res));
 	if (!bt_host->base) {
 		rc = -ENOMEM;
 		goto out_free;
@@ -291,8 +288,11 @@ static int bt_host_probe(struct platform_device *pdev)
 
 	init_waitqueue_head(&bt_host->queue);
 
-	bt_host_miscdev.parent = dev;
-	rc = misc_register(&bt_host_miscdev);
+	bt_host->miscdev.minor	= MISC_DYNAMIC_MINOR,
+	bt_host->miscdev.name	= DEVICE_NAME,
+	bt_host->miscdev.fops	= &bt_host_fops,
+	bt_host->miscdev.parent = dev;
+	rc = misc_register(&bt_host->miscdev);
 	if (rc) {
 		dev_err(dev, "Unable to register device\n");
 		goto out_unmap;
@@ -300,6 +300,7 @@ static int bt_host_probe(struct platform_device *pdev)
 
 	init_timer(&bt_host->poll_timer);
 	bt_host->poll_timer.function = poll_timer;
+	bt_host->poll_timer.data = (unsigned long)bt_host;
 	bt_host->poll_timer.expires = jiffies + msecs_to_jiffies(10);
 	add_timer(&bt_host->poll_timer);
 
@@ -309,7 +310,7 @@ static int bt_host_probe(struct platform_device *pdev)
 		  BT_CR0_EN_CLR_SLV_WRP |
 		  BT_CR0_ENABLE_IBT,
 		  bt_host->base + BT_CR0);
-	
+
 	clr_b_busy(bt_host);
 
 	return 0;
@@ -325,8 +326,9 @@ out_free:
 
 static int bt_host_remove(struct platform_device *pdev)
 {
+	struct bt_host *bt_host = dev_get_drvdata(&pdev->dev);
 	del_timer_sync(&bt_host->poll_timer);
-	misc_deregister(&bt_host_miscdev);
+	misc_deregister(&bt_host->miscdev);
 	devm_iounmap(&pdev->dev, bt_host->base);
 	devm_kfree(&pdev->dev, bt_host);
 	bt_host = NULL;
@@ -335,13 +337,13 @@ static int bt_host_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id bt_host_match[] = {
-	{ .compatible = "bt-host" },
+	{ .compatible = "aspeed,bt-host" },
 	{ },
 };
 
 static struct platform_driver bt_host_driver = {
 	.driver = {
-		.name		= "bt-host",
+		.name		= DEVICE_NAME,
 		.owner		= THIS_MODULE,
 		.of_match_table = bt_host_match,
 	},
@@ -349,35 +351,7 @@ static struct platform_driver bt_host_driver = {
 	.remove = bt_host_remove,
 };
 
-static int __init bt_host_init(void)
-{
-	int rc;
-
-	rc = alloc_chrdev_region(&bt_host_devt, 0, BT_NUM_DEVS, "bt");
-	if (rc) {
-		pr_err("bt-host: Could not allocate chardev region\n");
-		return rc;
-	}
-
-	rc = platform_driver_register(&bt_host_driver);
-	if (rc) {
-		pr_err("bt-host: Could not register platform device\n");
-		goto out_chardev;
-	}
-
-	return 0;
-
-out_chardev:
-	unregister_chrdev_region(bt_host_devt, BT_NUM_DEVS);
-	return rc;
-}
-module_init(bt_host_init);
-
-static void __exit bt_host_exit(void)
-{
-	platform_driver_unregister(&bt_host_driver);
-}
-module_exit(bt_host_exit);
+module_platform_driver(bt_host_driver);
 
 MODULE_DEVICE_TABLE(of, bt_host_match);
 MODULE_LICENSE("GPL");
