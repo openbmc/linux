@@ -3,8 +3,8 @@
 #include "skeleton.dtsi"
 
 / {
-	model = "Palmetto BMC";
-	compatible = "tyan,palmetto-bmc", "aspeed,ast2400";
+	model = "Barrelye BMC";
+	compatible = "rackspace,barreleye-bmc", "aspeed,ast2400";
 	#address-cells = <1>;
 	#size-cells = <1>;
 	interrupt-parent = <&vic>;
@@ -114,6 +114,10 @@
 						reg = <0x68>;
 						// interrupts = <GPIOF0>
 					};
+					lm75@4a {
+						compatible = "national,lm75";
+						reg = <0x4a>;
+					};
 				};
 
 				i2c1: i2c-bus@0x80 {
@@ -130,10 +134,6 @@
 					bus = <2>;
 					clock-frequency = <100000>;
 					status = "okay";
-					tmp423@4c {
-						compatible = "ti,tmp423";
-						reg = <0x4c>;
-					};
 				};
 
 				i2c3: i2c-bus@0x100 {
@@ -166,6 +166,14 @@
 					bus = <6>;
 					clock-frequency = <100000>;
 					status = "okay";
+					nct7904@2d {
+						compatible = "nuvoton,nct7904";
+						reg = <0x2d>;
+					};
+					nct7904@2e {
+						compatible = "nuvoton,nct7904";
+						reg = <0x2e>;
+					};
 				};
 
 				i2c7: i2c-bus@0x300 {
