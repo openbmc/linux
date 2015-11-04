@@ -501,7 +501,6 @@ static int i2c_device_uevent(struct device *dev, struct kobj_uevent_env *env)
 	if (add_uevent_var(env, "MODALIAS=%s%s",
 			   I2C_MODULE_PREFIX, client->name))
 		return -ENOMEM;
-	dev_dbg(dev, "uevent\n");
 	return 0;
 }
 
