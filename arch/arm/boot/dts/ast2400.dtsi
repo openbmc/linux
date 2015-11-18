@@ -87,6 +87,7 @@
 			ibt@1e789140 {
 				compatible = "aspeed,bt-host";
 				reg = <0x1e789140 0x18>;
+				interrupts = <8>;
 			};
 
 			i2c: i2c@1e78a040 {

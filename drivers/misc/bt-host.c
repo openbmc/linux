@@ -8,8 +8,10 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/of.h>
+#include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/miscdevice.h>
 #include <linux/timer.h>
@@ -28,7 +30,11 @@
 #define   BT_CR0_EN_CLR_SLV_WRP		0x4
 #define   BT_CR0_ENABLE_IBT		0x1
 #define BT_CR1		0x4
+#define   BT_CR1_IRQ_H2B	0x01
+#define   BT_CR1_IRQ_HBUSY	0x40
 #define BT_CR2		0x8
+#define   BT_CR2_IRQ_H2B	0x01
+#define   BT_CR2_IRQ_HBUSY	0x40
 #define BT_CR3		0xc
 #define BT_CTRL		0x10
 #define   BT_CTRL_B_BUSY		0x80
@@ -50,6 +56,7 @@ struct bt_host {
 	struct miscdevice	miscdev;
 	void			*base;
 	int			open_count;
+	int			irq;
 	wait_queue_head_t	queue;
 	struct timer_list	poll_timer;
 };
@@ -253,6 +260,53 @@ static void poll_timer(unsigned long data)
 	add_timer(&bt_host->poll_timer);
 }
 
+irqreturn_t bt_host_irq(int irq, void *arg)
+{
+	struct bt_host *bt_host = arg;
+	uint32_t reg;
+
+	reg = ioread32(bt_host->base + BT_CR2);
+	reg &= BT_CR2_IRQ_H2B | BT_CR2_IRQ_HBUSY;
+	if (!reg)
+		return IRQ_NONE;
+
+	/* ack pending IRQs */
+	iowrite32(reg, bt_host->base + BT_CR2);
+
+	wake_up(&bt_host->queue);
+	return IRQ_HANDLED;
+}
+
+static int bt_host_config_irq(struct bt_host *bt_host,
+		struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	uint32_t reg;
+	int rc;
+
+	bt_host->irq = irq_of_parse_and_map(dev->of_node, 0);
+	if (!bt_host->irq)
+		return -ENODEV;
+
+	rc = devm_request_irq(dev, bt_host->irq, bt_host_irq, IRQF_SHARED,
+			DEVICE_NAME, bt_host);
+	if (rc < 0) {
+		dev_warn(dev, "Unable to request IRQ %d\n", bt_host->irq);
+		bt_host->irq = 0;
+		return rc;
+	}
+
+	/* Configure IRQs on the host clearing the H2B and HBUSY bits;
+	 * H2B will be asserted when the host has data for us; HBUSY
+	 * will be cleared (along with B2H) when we can write the next
+	 * message to the BT buffer */
+	reg = ioread32(bt_host->base + BT_CR1);
+	reg |= BT_CR1_IRQ_H2B | BT_CR1_IRQ_HBUSY;
+	iowrite32(reg, bt_host->base + BT_CR1);
+
+	return 0;
+}
+
 static int bt_host_probe(struct platform_device *pdev)
 {
 	struct bt_host *bt_host;
@@ -279,8 +333,7 @@ static int bt_host_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
-	bt_host->base = devm_ioremap_nocache(&pdev->dev, res->start,
-						resource_size(res));
+	bt_host->base = devm_ioremap_resource(&pdev->dev, res);
 	if (!bt_host->base) {
 		rc = -ENOMEM;
 		goto out_free;
@@ -298,11 +351,18 @@ static int bt_host_probe(struct platform_device *pdev)
 		goto out_unmap;
 	}
 
-	init_timer(&bt_host->poll_timer);
-	bt_host->poll_timer.function = poll_timer;
-	bt_host->poll_timer.data = (unsigned long)bt_host;
-	bt_host->poll_timer.expires = jiffies + msecs_to_jiffies(10);
-	add_timer(&bt_host->poll_timer);
+	bt_host_config_irq(bt_host, pdev);
+
+	if (bt_host->irq) {
+		dev_info(dev, "Using IRQ %d\n", bt_host->irq);
+	} else {
+		dev_info(dev, "No IRQ; using timer\n");
+		init_timer(&bt_host->poll_timer);
+		bt_host->poll_timer.function = poll_timer;
+		bt_host->poll_timer.data = (unsigned long)bt_host;
+		bt_host->poll_timer.expires = jiffies + msecs_to_jiffies(10);
+		add_timer(&bt_host->poll_timer);
+	}
 
 	iowrite32((BT_IO_BASE << BT_CR0_IO_BASE) |
 		  (BT_IRQ << BT_CR0_IRQ) |
@@ -327,8 +387,9 @@ out_free:
 static int bt_host_remove(struct platform_device *pdev)
 {
 	struct bt_host *bt_host = dev_get_drvdata(&pdev->dev);
-	del_timer_sync(&bt_host->poll_timer);
 	misc_deregister(&bt_host->miscdev);
+	if (!bt_host->irq)
+		del_timer_sync(&bt_host->poll_timer);
 	devm_iounmap(&pdev->dev, bt_host->base);
 	devm_kfree(&pdev->dev, bt_host);
 	bt_host = NULL;
