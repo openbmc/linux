@@ -333,8 +333,7 @@ static int bt_host_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
-	bt_host->base = devm_ioremap_nocache(&pdev->dev, res->start,
-						resource_size(res));
+	bt_host->base = devm_ioremap_resource(&pdev->dev, res);
 	if (!bt_host->base) {
 		rc = -ENOMEM;
 		goto out_free;
