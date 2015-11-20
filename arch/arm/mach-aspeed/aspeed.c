@@ -183,6 +183,14 @@ static void __init aspeed_init_early(void)
 	udbg_uart_putc('O');
 	udbg_uart_putc('\n');
 
+	/*
+	 * temporary: enable i2c usage of the shared GPIO/I2C pins for
+	 * i2c busses 4 - 8
+	 */
+	reg = readl(AST_IO(AST_BASE_SCU | 0x90));
+	reg |= 0x3E0000;
+	writel(reg, AST_IO(AST_BASE_SCU | 0x90));
+
 	aspeed_dump_scu();
 }
 
