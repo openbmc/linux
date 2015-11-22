@@ -822,8 +822,10 @@ static int ast_i2c_probe_controller(struct platform_device *pdev)
 	dev_info(controller->dev, "i2c controller registered, irq %d\n",
 			controller->irq);
 
-	for_each_child_of_node(pdev->dev.of_node, np)
+	for_each_child_of_node(pdev->dev.of_node, np) {
 		of_platform_device_create(np, NULL, &pdev->dev);
+		of_node_put(np);
+	}
 
 	return 0;
 }
