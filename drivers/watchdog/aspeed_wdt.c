@@ -234,7 +234,7 @@ static struct platform_driver aspeed_watchdog_driver = {
 	.remove = aspeed_wdt_remove,
 	.driver = {
 		.name = KBUILD_MODNAME,
-		.of_match_table = aspeed_wdt_of_table,
+		.of_match_table = of_match_ptr(aspeed_wdt_of_table),
 	},
 };
 module_platform_driver(aspeed_watchdog_driver);
