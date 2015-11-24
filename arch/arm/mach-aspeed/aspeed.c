@@ -72,17 +72,12 @@ static struct map_desc aspeed_io_desc[] __initdata __maybe_unused = {
 
 #define LCR_DLAB 0x80
 
-static void udbg_uart_out(unsigned int reg, u8 data)
+static void ast_uart_out(unsigned int reg, u8 data)
 {
 	writeb(data, AST_IO(0x1E78F000 + reg * 4));
 }
 
-static u8 udbg_uart_in(unsigned int reg)
-{
-	return readb(AST_IO(0x1E78F000 + reg * 4)) & 0xff;
-}
-
-static void udbg_uart_setup(unsigned int speed, unsigned int clock)
+static void ast_host_uart_setup(unsigned int speed, unsigned int clock)
 {
 	unsigned int dll, base_bauds;
 
@@ -94,34 +89,18 @@ static void udbg_uart_setup(unsigned int speed, unsigned int clock)
 	base_bauds = clock / 16;
 	dll = base_bauds / speed;
 
-	printk("DLL=%d\n", dll);
-	udbg_uart_out(UART_LCR, 0x00);
-	udbg_uart_out(UART_IER, 0xff);
-	udbg_uart_out(UART_IER, 0x00);
-	udbg_uart_out(UART_LCR, LCR_DLAB);
-	udbg_uart_out(UART_DLL, dll & 0xff);
-	udbg_uart_out(UART_DLM, dll >> 8);
+	ast_uart_out(UART_LCR, 0x00);
+	ast_uart_out(UART_IER, 0xff);
+	ast_uart_out(UART_IER, 0x00);
+	ast_uart_out(UART_LCR, LCR_DLAB);
+	ast_uart_out(UART_DLL, dll & 0xff);
+	ast_uart_out(UART_DLM, dll >> 8);
 	/* 8 data, 1 stop, no parity */
-	udbg_uart_out(UART_LCR, 0x3);
+	ast_uart_out(UART_LCR, 0x3);
 	/* RTS/DTR */
-	udbg_uart_out(UART_MCR, 0x3);
+	ast_uart_out(UART_MCR, 0x3);
 	/* Clear & enable FIFOs */
-	udbg_uart_out(UART_FCR, 0x7);
-}
-
-static void udbg_uart_flush(void)
-{
-	/* wait for idle */
-	while ((udbg_uart_in(UART_LSR) & LSR_THRE) == 0)
-		;
-}
-
-static void udbg_uart_putc(char c)
-{
-	if (c == '\n')
-		udbg_uart_putc('\r');
-	udbg_uart_flush();
-	udbg_uart_out(UART_THR, c);
+	ast_uart_out(UART_FCR, 0x7);
 }
 
 #define SCU_PASSWORD	0x1688A8A8
@@ -131,11 +110,8 @@ static void __init aspeed_init_early(void)
 	u32 reg;
 
 	// XXX UART stuff to fix to pinmux & co
-	printk("UART IO MUX...\n");
 	writel(0x02010023, AST_IO(AST_BASE_LPC | 0x9c));
-	printk("UART PIN MUX...\n");
 	writel(SCU_PASSWORD, AST_IO(AST_BASE_SCU)); // UNLOCK SCU
-	printk("SCU LOCK: %08x\n", readl(AST_IO(AST_BASE_SCU)));
 	writel(0xcb000000, AST_IO(AST_BASE_SCU | 0x80));
 	writel(0x00fff0c0, AST_IO(AST_BASE_SCU | 0x84));
 	writel(0x10CC5E80, AST_IO(AST_BASE_SCU | 0x0c));
@@ -146,19 +122,10 @@ static void __init aspeed_init_early(void)
 	 */
 	reg = readl(AST_IO(AST_BASE_SCU | 0x2c));
 	writel(reg | 0x00001000, AST_IO(AST_BASE_SCU | 0x2c));
+	ast_host_uart_setup(115200,0);
 
-	printk("DONE, MUX=%08x %08x\n", readl(AST_IO(AST_BASE_SCU | 0x80)),
-	       readl(AST_IO(AST_BASE_SCU | 0x84)));
-	printk("CLOCK_CTRL=%08x\n", readl(AST_IO(AST_BASE_SCU)));
-	printk("WDT0C=%08x\n", readl(AST_IO(AST_BASE_WDT | 0x0c)));
 	writel(0, AST_IO(AST_BASE_WDT | 0x0c));
-	printk("WDT2C=%08x\n", readl(AST_IO(AST_BASE_WDT | 0x2c)));
 	writel(0, AST_IO(AST_BASE_WDT | 0x2c));
-	udbg_uart_setup(115200,0);
-	udbg_uart_putc('F');
-	udbg_uart_putc('O');
-	udbg_uart_putc('O');
-	udbg_uart_putc('\n');
 
 	/*
 	 * temporary: enable i2c usage of the shared GPIO/I2C pins for
