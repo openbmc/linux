@@ -1,0 +1,14 @@
+* BMC OCC Sensor HWMON driver.
+
+Required node properties:
+- compatible: manufacturer and chip name
+		"ibm,occ-i2c"
+
+- reg: I2C bus address of the device
+
+Example occ node:
+
+occ@50 {
+	compatible = "ibm,occ-i2c";
+	reg = <0x50>;
+}
