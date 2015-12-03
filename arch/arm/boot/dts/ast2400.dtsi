@@ -79,9 +79,9 @@
 			#size-cells = <1>;
 			ranges;
 
-			sram@1e72000 {
+			sram@1e720000 {
 				compatible = "mmio-sram";
-				reg = <0x1e72000 0x8000>;	// 32K
+				reg = <0x1e720000 0x8000>;	// 32K
 			};
 
 			ibt@1e789140 {
