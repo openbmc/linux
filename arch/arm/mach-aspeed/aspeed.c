@@ -103,6 +103,25 @@ static void ast_host_uart_setup(unsigned int speed, unsigned int clock)
 	ast_uart_out(UART_FCR, 0x7);
 }
 
+static void __init do_barreleye_setup(void)
+{
+	/* Enable LPC FWH cycles, Enable LPC to AHB bridge */
+	writel(0x00000500, AST_IO(AST_BASE_LPC | 0x80));
+
+	/* 32MB PNOR */
+	writel(0x00000E00, AST_IO(AST_BASE_LPC | 0x88));
+	writel(0xFE0001FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+	/* Flash controller */
+	writel(0x00000003, AST_IO(AST_BASE_SPI | 0x00));
+	writel(0x00002404, AST_IO(AST_BASE_SPI | 0x04));
+}
+
+static void __init do_palmetto_setup(void)
+{
+
+}
+
 #define SCU_PASSWORD	0x1688A8A8
 
 static void __init aspeed_init_early(void)
@@ -139,6 +158,12 @@ static void __init aspeed_init_early(void)
 	 * ensure all IPs are reset on watchdog expiry
 	 */
 	writel(0x003ffff3, AST_IO(AST_BASE_SCU | 0x9C));
+
+	if (of_machine_is_compatible("rackspace,barreleye-bmc"))
+		do_barreleye_setup();
+
+	if (of_machine_is_compatible("tyan,palmetto-bmc"))
+		do_palmetto_setup();
 }
 
 static void __init aspeed_map_io(void)
