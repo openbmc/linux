@@ -1168,14 +1168,14 @@ config SENSORS_NCT7904
 	  will be called nct7904.
 
 config SENSORS_OCC
-	tristate "BMC driver for OCC sensor"
+	tristate "OCC sensor BMC driver"
 	depends on I2C
 	help
 	  If you say yes here you get support for BMC to monitor IBM
 	  Power CPU sensors via the On-Chip-Controller (OCC).
 
 	  This driver can aslo be built as a module. If so, the module
-	  will be called occ.
+	  will be called occ_i2c.
 
 config SENSORS_PCF8591
 	tristate "Philips PCF8591 ADC/DAC"
