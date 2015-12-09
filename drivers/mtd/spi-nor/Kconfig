@@ -40,4 +40,11 @@ config SPI_NXP_SPIFI
 	  Flash. Enable this option if you have a device with a SPIFI
 	  controller and want to access the Flash as a mtd device.
 
+config ASPEED_FLASH_SPI
+	tristate "Aspeed flash controllers in SPI mode"
+	help
+	  This enables support for the New Static Memory Controller (FMC)
+	  in the AST2400 when attached to SPI nor chips, and support for
+	  the SPI Memory controller (SPI) for the BIOS.
+
 endif # MTD_SPI_NOR
