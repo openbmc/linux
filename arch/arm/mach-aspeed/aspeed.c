@@ -103,6 +103,71 @@ static void ast_host_uart_setup(unsigned int speed, unsigned int clock)
 	ast_uart_out(UART_FCR, 0x7);
 }
 
+static void __init do_common_setup(void)
+{
+	u32 reg;
+
+	/* Enable LPC FWH cycles, Enable LPC to AHB bridge */
+	writel(0x00000500, AST_IO(AST_BASE_LPC | 0x80));
+
+
+	/* Flash controller */
+	writel(0x00000003, AST_IO(AST_BASE_SPI | 0x00));
+	writel(0x00002404, AST_IO(AST_BASE_SPI | 0x04));
+
+	/* set UART routing */
+	writel(0x00000000, AST_IO(AST_BASE_LPC | 0x9c));
+
+	/* SCU setup */
+	writel(0x01C000FF, AST_IO(AST_BASE_SCU | 0x88));
+	writel(0xC1C000FF, AST_IO(AST_BASE_SCU | 0x8c));
+	writel(0x01C0007F, AST_IO(AST_BASE_SCU | 0x88));
+	writel(0x003FA009, AST_IO(AST_BASE_SCU | 0x90));
+	
+	/* setup scratch registers */
+	writel(0x00000042, AST_IO(AST_BASE_LPC | 0x170));
+	writel(0x00004000, AST_IO(AST_BASE_LPC | 0x174));
+}
+
+static void __init do_barreleye_setup(void)
+{
+	u32 reg;
+	do_common_setup();
+
+	/* Setup PNOR address mapping for 64M flash */
+	writel(0x30000C00, AST_IO(AST_BASE_LPC | 0x88));
+	writel(0xFC0003FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+	/* GPIO setup */
+	writel(0x9E82FCE7, AST_IO(AST_BASE_GPIO | 0x00));
+	writel(0x0370E677, AST_IO(AST_BASE_GPIO | 0x04));
+
+	/*
+	 * Do read/modify/write on power gpio
+	 * to prevent resetting power on reboot
+	*/
+	reg = readl(AST_IO(AST_BASE_GPIO | 0x20));
+	reg |= 0xCFC8F7FD;
+	writel(reg, AST_IO(AST_BASE_GPIO | 0x20));
+	writel(0xC738F20A, AST_IO(AST_BASE_GPIO | 0x24));
+	writel(0x0031FFAF, AST_IO(AST_BASE_GPIO | 0x80));
+}
+
+static void __init do_palmetto_setup(void)
+{
+	do_common_setup();
+
+	/* Setup PNOR address mapping for 32M flash */
+	writel(0x30000E00, AST_IO(AST_BASE_LPC | 0x88));
+	writel(0xFE0001FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+	/* GPIO setup */
+	writel(0x13008CE7, AST_IO(AST_BASE_GPIO | 0x00));
+	writel(0x0370E677, AST_IO(AST_BASE_GPIO | 0x04));
+	writel(0xDF48F7FF, AST_IO(AST_BASE_GPIO | 0x20));
+	writel(0xC738F202, AST_IO(AST_BASE_GPIO | 0x24));
+}
+
 #define SCU_PASSWORD	0x1688A8A8
 
 static void __init aspeed_init_early(void)
@@ -127,13 +192,11 @@ static void __init aspeed_init_early(void)
 	writel(0, AST_IO(AST_BASE_WDT | 0x0c));
 	writel(0, AST_IO(AST_BASE_WDT | 0x2c));
 
-	/*
-	 * temporary: enable i2c usage of the shared GPIO/I2C pins for
-	 * i2c busses 4 - 8
-	 */
-	reg = readl(AST_IO(AST_BASE_SCU | 0x90));
-	reg |= 0x3E0000;
-	writel(reg, AST_IO(AST_BASE_SCU | 0x90));
+	if (of_machine_is_compatible("rackspace,barreleye-bmc"))
+		do_barreleye_setup();
+	if (of_machine_is_compatible("tyan,palmetto-bmc"))
+		do_palmetto_setup();
+
 }
 
 static void __init aspeed_map_io(void)
