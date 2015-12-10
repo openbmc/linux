@@ -361,7 +361,7 @@ int ncsi_xmit_cmd(struct ncsi_cmd_arg *nca)
 
 	/* Send NCSI packet */
 	skb_get(nr->nr_cmd);
-	ret = dev_queue_xmit_sk(NULL, nr->nr_cmd);
+	ret = dev_queue_xmit(nr->nr_cmd);
 	if (ret)
 		goto out;
 
