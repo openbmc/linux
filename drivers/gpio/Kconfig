@@ -119,6 +119,13 @@ config GPIO_ALTERA
 
 	  If driver is built as a module it will be called gpio-altera.
 
+config GPIO_ASPEED
+	bool "Aspeed AST2400 GPIO support"
+	depends on ARCH_ASPEED && OF
+	select GENERIC_IRQ_CHIP
+	help
+	  Say Y here to support Aspeed AST2400 GPIO.
+
 config GPIO_BCM_KONA
 	bool "Broadcom Kona GPIO"
 	depends on OF_GPIO && (ARCH_BCM_MOBILE || COMPILE_TEST)
@@ -356,7 +363,7 @@ config GPIO_PXA
 
 config GPIO_RCAR
 	tristate "Renesas R-Car GPIO"
-	depends on ARM && (ARCH_SHMOBILE || COMPILE_TEST)
+	depends on ARCH_SHMOBILE || COMPILE_TEST
 	select GPIOLIB_IRQCHIP
 	help
 	  Say yes here to support GPIO on Renesas R-Car SoCs.
@@ -968,7 +975,6 @@ config GPIO_SODAVILLE
 	select GENERIC_IRQ_CHIP
 	help
 	  Say Y here to support Intel Sodaville GPIO.
-
 endmenu
 
 menu "SPI GPIO expanders"

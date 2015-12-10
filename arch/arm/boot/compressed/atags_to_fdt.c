@@ -1,6 +1,8 @@
 #include <asm/setup.h>
 #include <libfdt.h>
 
+#include CONFIG_UNCOMPRESS_INCLUDE
+
 #if defined(CONFIG_ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEND)
 #define do_extend_cmdline 1
 #else
@@ -105,6 +107,34 @@ static void merge_fdt_bootargs(void *fdt, const char *fdt_cmdline)
  *    = 1 -> bad ATAG (may retry with another possible ATAG pointer)
  *    < 0 -> error from libfdt
  */
+void putstr(const char *ptr)
+{
+	char c;
+
+	while ((c = *ptr++) != '\0') {
+		if (c == '\n')
+			putc('\r');
+		putc(c);
+	}
+
+	flush();
+}
+
+static void puthex(unsigned long val)
+{
+	int i, nibbles = sizeof(val)*2;
+	char buf[sizeof(val)*2+1];
+
+	for (i = nibbles-1;  i >= 0;  i--) {
+		buf[i] = (val & 0xf) + '0';
+		if (buf[i] > '9')
+			buf[i] += ('a'-'0'-10);
+		val >>= 4;
+	}
+	buf[nibbles] = '\0';
+	putstr(buf);
+}
+
 int atags_to_fdt(void *atag_list, void *fdt, int total_space)
 {
 	struct tag *atag = atag_list;
@@ -113,6 +143,12 @@ int atags_to_fdt(void *atag_list, void *fdt, int total_space)
 	uint32_t mem_reg_property[2 * 2 * NR_BANKS];
 	int memcount = 0;
 	int ret, memsize;
+
+	putstr("atags_to_fdt\natags=");
+	puthex((unsigned long)atag_list);
+	putstr("\nfdt=");
+	puthex((unsigned long)fdt);
+	putstr("\n");
 
 	/* make sure we've got an aligned pointer */
 	if ((u32)atag_list & 0x3)
@@ -141,6 +177,9 @@ int atags_to_fdt(void *atag_list, void *fdt, int total_space)
 			 * the device tree and in the tags, the one from the
 			 * tags will be chosen.
 			 */
+			putstr("cmdline=");
+			putstr(atag->u.cmdline.cmdline);
+			putstr("\n");
 			if (do_extend_cmdline)
 				merge_fdt_bootargs(fdt,
 						   atag->u.cmdline.cmdline);
@@ -164,6 +203,11 @@ int atags_to_fdt(void *atag_list, void *fdt, int total_space)
 					cpu_to_fdt64(atag->u.mem.start);
 				mem_reg_prop64[memcount++] =
 					cpu_to_fdt64(atag->u.mem.size);
+				putstr("mem=");
+				puthex(atag->u.mem.start);
+				putstr("/");
+				puthex(atag->u.mem.size);
+				putstr("\n");
 			} else {
 				mem_reg_property[memcount++] =
 					cpu_to_fdt32(atag->u.mem.start);

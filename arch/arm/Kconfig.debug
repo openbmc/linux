@@ -1209,6 +1209,7 @@ choice
 
 	config DEBUG_LL_UART_8250
 		bool "Kernel low-level debugging via 8250 UART"
+		select DEBUG_UART_8250
 		help
 		  Say Y here if you wish the debug print routes to direct
 		  their output to an 8250 UART.  You can use this option

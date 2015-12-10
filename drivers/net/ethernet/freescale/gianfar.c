@@ -341,7 +341,7 @@ static void gfar_rx_offload_en(struct gfar_private *priv)
 	if (priv->ndev->features & (NETIF_F_RXCSUM | NETIF_F_HW_VLAN_CTAG_RX))
 		priv->uses_rxfcb = 1;
 
-	if (priv->hwts_rx_en)
+	if (priv->hwts_rx_en || priv->rx_filer_enable)
 		priv->uses_rxfcb = 1;
 }
 
@@ -351,7 +351,7 @@ static void gfar_mac_rx_config(struct gfar_private *priv)
 	u32 rctrl = 0;
 
 	if (priv->rx_filer_enable) {
-		rctrl |= RCTRL_FILREN;
+		rctrl |= RCTRL_FILREN | RCTRL_PRSDEP_INIT;
 		/* Program the RIR0 reg with the required distribution */
 		if (priv->poll_mode == GFAR_SQ_POLLING)
 			gfar_write(&regs->rir0, DEFAULT_2RXQ_RIR0);
@@ -1710,8 +1710,10 @@ static void gfar_configure_serdes(struct net_device *dev)
 	 * everything for us?  Resetting it takes the link down and requires
 	 * several seconds for it to come back.
 	 */
-	if (phy_read(tbiphy, MII_BMSR) & BMSR_LSTATUS)
+	if (phy_read(tbiphy, MII_BMSR) & BMSR_LSTATUS) {
+		put_device(&tbiphy->dev);
 		return;
+	}
 
 	/* Single clk mode, mii mode off(for serdes communication) */
 	phy_write(tbiphy, MII_TBICON, TBICON_CLK_SELECT);
@@ -1723,6 +1725,8 @@ static void gfar_configure_serdes(struct net_device *dev)
 	phy_write(tbiphy, MII_BMCR,
 		  BMCR_ANENABLE | BMCR_ANRESTART | BMCR_FULLDPLX |
 		  BMCR_SPEED1000);
+
+	put_device(&tbiphy->dev);
 }
 
 static int __gfar_is_rx_idle(struct gfar_private *priv)
@@ -1970,8 +1974,7 @@ static int register_grp_irqs(struct gfar_priv_grp *grp)
 		/* Install our interrupt handlers for Error,
 		 * Transmit, and Receive
 		 */
-		err = request_irq(gfar_irq(grp, ER)->irq, gfar_error,
-				  IRQF_NO_SUSPEND,
+		err = request_irq(gfar_irq(grp, ER)->irq, gfar_error, 0,
 				  gfar_irq(grp, ER)->name, grp);
 		if (err < 0) {
 			netif_err(priv, intr, dev, "Can't get IRQ %d\n",
@@ -1979,6 +1982,8 @@ static int register_grp_irqs(struct gfar_priv_grp *grp)
 
 			goto err_irq_fail;
 		}
+		enable_irq_wake(gfar_irq(grp, ER)->irq);
+
 		err = request_irq(gfar_irq(grp, TX)->irq, gfar_transmit, 0,
 				  gfar_irq(grp, TX)->name, grp);
 		if (err < 0) {
@@ -1994,14 +1999,14 @@ static int register_grp_irqs(struct gfar_priv_grp *grp)
 			goto rx_irq_fail;
 		}
 	} else {
-		err = request_irq(gfar_irq(grp, TX)->irq, gfar_interrupt,
-				  IRQF_NO_SUSPEND,
+		err = request_irq(gfar_irq(grp, TX)->irq, gfar_interrupt, 0,
 				  gfar_irq(grp, TX)->name, grp);
 		if (err < 0) {
 			netif_err(priv, intr, dev, "Can't get IRQ %d\n",
 				  gfar_irq(grp, TX)->irq);
 			goto err_irq_fail;
 		}
+		enable_irq_wake(gfar_irq(grp, TX)->irq);
 	}
 
 	return 0;
@@ -3457,10 +3462,8 @@ static irqreturn_t gfar_error(int irq, void *grp_id)
 		netif_dbg(priv, tx_err, dev, "Transmit Error\n");
 	}
 	if (events & IEVENT_BSY) {
-		dev->stats.rx_errors++;
+		dev->stats.rx_over_errors++;
 		atomic64_inc(&priv->extra_stats.rx_bsy);
-
-		gfar_receive(irq, grp_id);
 
 		netif_dbg(priv, rx_err, dev, "busy error (rstat: %x)\n",
 			  gfar_read(&regs->rstat));

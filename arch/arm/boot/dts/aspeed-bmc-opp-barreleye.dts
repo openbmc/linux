@@ -1,0 +1,42 @@
+/dts-v1/;
+
+#include "ast2400.dtsi"
+
+/ {
+	model = "Barrelye BMC";
+	compatible = "rackspace,barreleye-bmc", "aspeed,ast2400";
+	ahb {
+		apb {
+			i2c: i2c@1e78a040 {
+				i2c0: i2c-bus@40 {
+					eeprom@50 {
+						compatible = "atmel,24c256";
+						reg = <0x50>;
+						pagesize = <64>;
+					};
+					rtc@68 {
+						compatible = "dallas,ds3231";
+						reg = <0x68>;
+						// interrupts = <GPIOF0>
+					};
+					lm75@4a {
+						compatible = "national,lm75";
+						reg = <0x4a>;
+					};
+				};
+
+				i2c6: i2c-bus@1c0 {
+					nct7904@2d {
+						compatible = "nuvoton,nct7904";
+						reg = <0x2d>;
+					};
+					nct7904@2e {
+						compatible = "nuvoton,nct7904";
+						reg = <0x2e>;
+					};
+				};
+			};
+		};
+	};
+};
+

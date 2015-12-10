@@ -1,0 +1,355 @@
+#include "skeleton.dtsi"
+
+/ {
+	model = "Palmetto BMC";
+	compatible = "tyan,palmetto-bmc", "aspeed,ast2400";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	interrupt-parent = <&vic>;
+
+	aliases {
+		serial0 = &uart5;
+	};
+
+	chosen {
+		stdout-path = &uart5;
+		bootargs = "console=ttyS4,38400";
+	};
+
+	memory {
+		reg = < 0x40000000 0x10000000 >;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			compatible = "arm,arm926ej-s";
+			device_type = "cpu";
+			reg = <0>;
+		};
+	};
+
+	// FIXME
+	clocks {
+		// Do a proper driver... for now, we know the straps
+		// and uboot config on palmetto are:
+		// - CLKIN is 48Mhz
+		// - HPLL is 384Mhz
+		// - CPU:AHB is strapped 2:1
+		// - PCLK is HPLL/8 = 48Mhz
+		clk_apb: clk_apb {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <48000000>;
+		};
+		clk_hpll: clk_hpll {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <384000000>;
+		};
+	};
+
+	ahb {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		vic: interrupt-controller@1e6c0080 {
+			compatible = "aspeed,new-vic";
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			valid-sources = < 0xffffffff 0x0007ffff>;
+			reg = <0x1e6c0080 0x80>;
+		};
+
+		mac0: ethernet@1e660000 {
+			compatible = "faraday,ftgmac100", "aspeed,ast2400-mac";
+			reg = <0x1e660000 0x180>;
+			interrupts = <2>;
+			use-nc-si;
+			no-hw-checksum;
+		};
+
+		apb {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			sram@1e72000 {
+				compatible = "mmio-sram";
+				reg = <0x1e72000 0x8000>;	// 32K
+			};
+
+			ibt@1e789140 {
+				compatible = "aspeed,bt-host";
+				reg = <0x1e789140 0x18>;
+				interrupts = <8>;
+			};
+
+			i2c: i2c@1e78a040 {
+				#address-cells = <1>;
+				#size-cells = <1>;
+				#interrupt-cells = <1>;
+
+				compatible = "aspeed,ast2400-i2c-controller";
+				reg = <0x1e78a000 0x40>;
+				ranges = <0 0x1e78a000 0x1000>;
+				interrupts = <12>;
+				clocks = <&clk_apb>;
+				clock-ranges;
+				interrupt-controller;
+
+				i2c0: i2c-bus@40 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x40 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <0>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <0>;
+					interrupt-parent = <&i2c>;
+				};
+
+				i2c1: i2c-bus@80 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x80 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <1>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <1>;
+				};
+
+				i2c2: i2c-bus@c0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0xC0 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <2>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <2>;
+				};
+
+				i2c3: i2c-bus@100 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x100 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <3>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <3>;
+				};
+
+				i2c4: i2c-bus@140 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x140 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <4>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <4>;
+				};
+
+				i2c5: i2c-bus@0x180 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x180 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <5>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <5>;
+				};
+
+				i2c6: i2c-bus@1c0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x1C0 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <6>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <6>;
+				};
+
+				i2c7: i2c-bus@300 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x300 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <7>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <7>;
+				};
+
+				i2c8: i2c-bus@340 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x340 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <8>;
+					clock-frequency = <100000>;
+					status = "okay";
+					interrupts = <8>;
+				};
+
+				i2c9: i2c-bus@380 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x380 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <9>;
+					clock-frequency = <100000>;
+					status = "disabled";
+					interrupts = <9>;
+				};
+
+				i2c10: i2c-bus@3c0 {
+					reg = <0x380 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <10>;
+					clock-frequency = <100000>;
+					status = "disabled";
+					interrupts = <10>;
+				};
+
+				i2c11: i2c-bus@400 {
+					reg = <0x400 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <11>;
+					clock-frequency = <100000>;
+					status = "disabled";
+					interrupts = <11>;
+				};
+
+				i2c12: i2c-bus@440 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x400 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <12>;
+					clock-frequency = <100000>;
+					status = "disabled";
+					interrupts = <12>;
+				};
+
+				i2c13: i2c-bus@480 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x480 0x40>;
+					compatible = "aspeed,ast2400-i2c-bus";
+					bus = <13>;
+					clock-frequency = <100000>;
+					status = "disabled";
+					interrupts = <13>;
+				};
+
+			};
+
+			syscon: syscon@1e6e2000 {
+				compatible = "aspeed,syscon", "syscon";
+				reg = <0x1e6e2000 0x1a8>;
+				interrupts = <19>;
+				clocks = <&clk_apb>;
+				status = "okay";
+			};
+
+			wdt: wdt@1e785000 {
+				compatible = "aspeed,wdt", "wdt";
+				reg = <0x1e785000 0x1c4>;
+				interrupts = <27>;
+				clocks = <&clk_apb>;
+			};
+
+			rtc: rtc@1e781000 {
+				compatible = "aspeed,rtc";
+				reg = <0x1e781000 0x18>;
+			};
+
+			timer: timer@98400000 {
+				compatible = "aspeed,timer";
+				reg = <0x1e782000 0x90>;
+				// The moxart_timer driver registers only one interrupt
+				// and assumes it's for timer 1
+				//interrupts = <16 17 18 35 36 37 38 39>;
+				interrupts = <16>;
+				clocks = <&clk_apb>;
+			};
+
+			gpio: gpio@1e780000 {
+			       compatible = "aspeed,ast2400-gpio";
+			       reg = <0x1e780000 0x1000>;
+			       interrupts = <20>;
+			};
+
+			uart1: serial@1e783000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e783000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <9>;
+			       clock-frequency = < 1843200 >;
+			       no-loopback-test;
+			};
+			uart2: serial@1e78d000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e78d000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <32>;
+			       clock-frequency = < 1843200 >;
+			       no-loopback-test;
+			};
+			/* APSS UART */
+			uart3: serial@1e78e000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e78e000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <33>;
+			       clock-frequency = < 1843200 >;
+			       no-loopback-test;
+			};
+
+			/* Host UART */
+			uart4: serial@1e78f000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e78f000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <34>;
+			       clock-frequency = < 1843200 >;
+			       current-speed = < 115200 >;
+			       no-loopback-test;
+			};
+#if 1
+			/* BMC UART */
+			uart5: serial@1e784000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e784000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <10>;
+			       clock-frequency = < 1843200 >;
+			       current-speed = < 38400 >;
+			       no-loopback-test;
+			};
+#endif
+
+			uart6: serial@1e787000 {
+			       compatible = "ns16550a";
+			       reg = <0x1e787000 0x1000>;
+			       reg-shift = <2>;
+			       interrupts = <10>;
+			       clock-frequency = < 1843200 >;
+			       current-speed = < 38400 >;
+			       no-loopback-test;
+			};
+		};
+	};
+};

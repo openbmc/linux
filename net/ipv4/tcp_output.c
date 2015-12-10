@@ -2897,6 +2897,7 @@ void tcp_send_active_reset(struct sock *sk, gfp_t priority)
 	skb_reserve(skb, MAX_TCP_HEADER);
 	tcp_init_nondata_skb(skb, tcp_acceptable_seq(sk),
 			     TCPHDR_ACK | TCPHDR_RST);
+	skb_mstamp_get(&skb->skb_mstamp);
 	/* Send it off. */
 	if (tcp_transmit_skb(sk, skb, 0, priority))
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPABORTFAILED);
@@ -3404,7 +3405,7 @@ static int tcp_xmit_probe_skb(struct sock *sk, int urgent, int mib)
 	 */
 	tcp_init_nondata_skb(skb, tp->snd_una - !urgent, TCPHDR_ACK);
 	skb_mstamp_get(&skb->skb_mstamp);
-	NET_INC_STATS_BH(sock_net(sk), mib);
+	NET_INC_STATS(sock_net(sk), mib);
 	return tcp_transmit_skb(sk, skb, 0, GFP_ATOMIC);
 }
 

@@ -121,7 +121,7 @@ int tipc_buf_append(struct sk_buff **headbuf, struct sk_buff **buf)
 {
 	struct sk_buff *head = *headbuf;
 	struct sk_buff *frag = *buf;
-	struct sk_buff *tail;
+	struct sk_buff *tail = NULL;
 	struct tipc_msg *msg;
 	u32 fragid;
 	int delta;
@@ -141,9 +141,15 @@ int tipc_buf_append(struct sk_buff **headbuf, struct sk_buff **buf)
 		if (unlikely(skb_unclone(frag, GFP_ATOMIC)))
 			goto err;
 		head = *headbuf = frag;
-		skb_frag_list_init(head);
-		TIPC_SKB_CB(head)->tail = NULL;
 		*buf = NULL;
+		TIPC_SKB_CB(head)->tail = NULL;
+		if (skb_is_nonlinear(head)) {
+			skb_walk_frags(head, tail) {
+				TIPC_SKB_CB(head)->tail = tail;
+			}
+		} else {
+			skb_frag_list_init(head);
+		}
 		return 0;
 	}
 
@@ -539,6 +545,7 @@ bool tipc_msg_lookup_dest(struct net *net, struct sk_buff *skb, int *err)
 	*err = -TIPC_ERR_NO_NAME;
 	if (skb_linearize(skb))
 		return false;
+	msg = buf_msg(skb);
 	if (msg_reroute_cnt(msg))
 		return false;
 	dnode = addr_domain(net, msg_lookup_scope(msg));
