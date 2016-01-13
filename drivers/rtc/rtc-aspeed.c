@@ -48,8 +48,7 @@ static int aspeed_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	sec  = (reg1 >>  0) & 0x3f;
 	cent = (reg2 >> 16) & 0x1f;
 	year = (reg2 >>  8) & 0x7f;
-	/* struct rtc_time counts from 0 to 11, but hardware is 1 to 12 */
-	mon  = ((reg2 >>  0) & 0x3f) - 1;
+	mon  = (reg2 >>  0) & 0xf;	/* mktime64 and hardware use 1 = Jan */
 
 	rtc_time64_to_tm(mktime64(cent*100 + year, mon, day, hour, min, sec),
 			 tm);
