@@ -35,6 +35,16 @@
 						compatible = "nuvoton,nct7904";
 						reg = <0x2e>;
 					};
+					eeprom@51 {
+						compatible = "atmel,24c02";
+						reg = <0x51>;
+						pagesize = <8>;
+					};
+					eeprom@55 {
+						compatible = "atmel,24c02";
+						reg = <0x55>;
+						pagesize = <8>;
+					};
 				};
 			};
 		};
