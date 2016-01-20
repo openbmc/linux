@@ -1154,7 +1154,6 @@ int ncsi_rcv_rsp(struct sk_buff *skb, struct net_device *dev,
 
 	nr->nr_rsp = skb;
 	if (!nr->nr_timer_enabled) {
-		spin_unlock_irqrestore(&ndp->ndp_req_lock, flags);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1163,6 +1162,7 @@ int ncsi_rcv_rsp(struct sk_buff *skb, struct net_device *dev,
 	ret = nrh->nrh_handler(nr);
 
 out:
+	spin_unlock_irqrestore(&ndp->ndp_req_lock, flags);
 	ncsi_free_req(nr, true, false);
 	return ret;
 }
