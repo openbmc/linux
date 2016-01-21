@@ -721,6 +721,7 @@ static int ast_i2c_probe_bus(struct platform_device *pdev)
 	}
 
 	/* Initialize the I2C adapter */
+	spin_lock_init(&bus->cmd_lock);
 	bus->adap.nr = bus_num;
 	bus->adap.owner = THIS_MODULE;
 	bus->adap.retries = 0;
