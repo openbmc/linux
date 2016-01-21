@@ -1,0 +1,68 @@
+* Aspeed Static Memory controller in SPI mode
+* Aspeed SPI Flash Controller
+
+Required properties:
+  - compatible : Should be "aspeed,fmc" for Static Memory Controller (AST2400, AST2300?), or
+		 "aspeed,smc" for the SPI flash controller
+  - reg : the first contains the register location and length,
+          the second through nth contains the memory mapping address and length
+	  for the access window for each chips select
+  - interrupts : Should contain the interrupt for the dma device if fmc
+  - clocks : The APB clock input to the controller
+  - #address-cells : must be 1 corresponding to chip select child binding
+  - #size-cells : must be 0 corresponding to chip select child binding
+
+
+Child node required properties:
+  - reg : must contain chip select number in first cell of address, must
+	  be 1 tuple long
+  - compatible : may contain "vendor,part", must include "jedec,spi-nor"
+		(see spi-nor.txt binding).
+
+Child node optional properties:
+  - spi-max-frequency - (optional) max frequency of spi bus (XXX max if missing)
+  - spi-cpol        - (optional) Empty property indicating device requires
+    	 		inverse clock polarity (CPOL) mode (boolean)
+  - spi-cpha        - (optional) Empty property indicating device requires
+    			shifted clock phase (CPHA) mode (boolean)
+  - spi-tx-bus-width - (optional) The bus width(number of data wires) that
+                        used for MOSI. Defaults to 1 if not present.
+  - spi-rx-bus-width - (optional) The bus width(number of data wires) that
+                        used for MOSI. Defaults to 1 if not present.
+
+Child node optional properties:
+ - see mtd/partiton.txt for partitioning bindings and mtd naming
+
+
+Example:
+
+fmc: fmc@1e620000 {
+	compatible = "aspeed,fmc";
+	reg = < 0x1e620000 0x94
+		0x20000000 0x02000000
+		0x22000000 0x02000000 >;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	bmc@0 {
+		reg = < 0 >;
+		compatible = "jedec,spi-nor" ;
+		label = "bmc0";
+		/* spi-max-frequency = <>; */
+		/* m25p,fast-read; */
+		#address-cells = <1>;
+		#size-cells = <1>;
+			bootloader {
+				label = "boot";
+				reg = < 0 0x8000 >
+			}
+	};
+	alt@1 {
+		reg = < 1 >;
+		compatible = "jedec,spi-nor" ;
+		label = "bmc1";
+		/* spi-max-frequency = <>; */
+		status = "fail";
+		/* m25p,fast-read; */
+	};
+};
+
