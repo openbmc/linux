@@ -579,6 +579,8 @@ static int occ_get_all(struct i2c_client *client, struct occ_response *occ_resp)
 	int ret;
 	uint8_t poll_cmd_data;
 
+	poll_cmd_data = 0x10;
+
 	/*
 	 * TODO: fetch header, and then allocate the rest of the buffer based
 	 * on the header size. Assuming the OCC has a fixed sized header
