@@ -100,17 +100,14 @@
 		compatible = "gpio-leds";
 
 		heartbeat {
-			gpios = <&gpio 140 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio 140 GPIO_ACTIVE_HIGH>;
 		};
-
-		power {
-			gpios = <&gpio 141 GPIO_ACTIVE_LOW>;
-		};
-
 		identify {
-			gpios = <&gpio 2 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio 58 GPIO_ACTIVE_LOW>;
 		};
-
+		beep {
+			gpios = <&gpio 111 GPIO_ACTIVE_HIGH>;
+		};
 	};
 };
 
