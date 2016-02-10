@@ -684,6 +684,7 @@ static int ast_i2c_probe_bus(struct platform_device *pdev)
 	struct ast_i2c_bus *bus;
 	struct resource res;
 	int ret, bus_num;
+	char *irq_name;
 
 	bus = devm_kzalloc(&pdev->dev, sizeof(*bus), GFP_KERNEL);
 	if (!bus)
@@ -713,8 +714,9 @@ static int ast_i2c_probe_bus(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	irq_name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "i2c-%d", bus_num);
 	ret = devm_request_irq(&pdev->dev, bus->irq, ast_i2c_bus_irq,
-			0, "ast-i2c-bus", bus);
+			0, irq_name, bus);
 	if (ret) {
 		dev_err(&pdev->dev, "devm_request_irq failed\n");
 		return -ENXIO;
