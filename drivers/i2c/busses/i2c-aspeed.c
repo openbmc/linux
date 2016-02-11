@@ -693,13 +693,6 @@ static int ast_i2c_probe_bus(struct platform_device *pdev)
 	if (ret)
 		return -ENXIO;
 
-	/*
-	 * Set a useful name derived from the bus number; the device tree
-	 * should provide us with one that corresponds to the hardware
-	 * numbering
-	 */
-	dev_set_name(&pdev->dev, "i2c-%d", bus_num);
-
 	bus->pclk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(bus->pclk)) {
 		dev_dbg(&pdev->dev, "clk_get failed\n");
@@ -828,7 +821,26 @@ static int ast_i2c_probe_controller(struct platform_device *pdev)
 			controller->irq);
 
 	for_each_child_of_node(pdev->dev.of_node, np) {
-		of_platform_device_create(np, NULL, &pdev->dev);
+		int ret;
+		u32 bus_num;
+		char bus_id[sizeof("i2c-12345")];
+
+		/*
+		 * Set a useful name derived from the bus number; the device
+		 * tree should provide us with one that corresponds to the
+		 * hardware numbering.  If the property is missing the
+		 * probe would fail so just skip it here.
+		 */
+
+		ret = of_property_read_u32(np, "bus", &bus_num);
+		if (ret)
+			continue;
+
+		ret = snprintf(bus_id, sizeof(bus_id), "i2c-%u", bus_num);
+		if (ret >= sizeof(bus_id))
+			continue;
+
+		of_platform_device_create(np, bus_id, &pdev->dev);
 		of_node_put(np);
 	}
 
