@@ -159,7 +159,7 @@
 					interrupts = <4>;
 				};
 
-				i2c5: i2c-bus@0x180 {
+				i2c5: i2c-bus@180 {
 					#address-cells = <1>;
 					#size-cells = <0>;
 					reg = <0x180 0x40>;
