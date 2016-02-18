@@ -8,6 +8,12 @@
  *
  */
 
+/* See comment by aspeed_smc_from_fifo */
+#ifdef CONFIG_ARM
+#define IO_SPACE_LIMIT (~0UL)
+#endif
+
+#include <linux/bug.h>
 #include <linux/device.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -18,6 +24,94 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/sysfs.h>
+
+/*
+ * On the arm architecture, as of Linux version 4.3, memcpy_fromio
+ * stutters discarding some of the bytes read if the destination is
+ * unaligned, so we can't use it for reading from a fifo to a buffer
+ * of unknown alignment.  Instead use the ins (l, w, b) family
+ * to read from the fifo.   However, ARM tries to hide io port
+ * accesses from drivers unless there is a PCMCIA or PCI device, so
+ * we define the limit before all include files.  There is a
+ * check in probe to make sure this will work, as long as the
+ * architecture uses an identity iomap.
+ */
+
+static void aspeed_smc_from_fifo(void *buf, const void __iomem *iop, size_t len)
+{
+	unsigned long io = (__force unsigned long)iop;
+
+	if (!len)
+		return;
+
+	/* Expect a 4 byte input port.  Otherwise just read bytes */
+	if (unlikely(io & 3)) {
+		insb(io, buf, len);
+		return;
+	}
+
+	/* Align target to word: first byte then half word */
+	if ((unsigned long)buf & 1) {
+		*(u8 *)buf = inb(io);
+		buf++;
+		len--;
+	}
+	if (((unsigned long)buf & 2) && (len >= 2)) {
+		*(u16 *)buf = inw(io);
+		buf += 2;
+		len -= 2;
+	}
+	/* Transfer words, then remaining halfword and remaining byte */
+	if (len >= 4) {
+		insl(io, buf, len >> 2);
+		buf += len & ~3;
+	}
+	if (len & 2) {
+		*(u16 *)buf = inw(io);
+		buf += 2;
+	}
+	if (len & 1) {
+		*(u8 *)buf = inb(io);
+	}
+}
+
+static void aspeed_smc_to_fifo(void __iomem *iop, const void *buf, size_t len)
+{
+	unsigned long io = (__force unsigned long)iop;
+
+	if (!len)
+		return;
+
+	/* Expect a 4 byte output port.  Otherwise just write bytes */
+	if (io & 3) {
+		outsb(io, buf, len);
+		return;
+	}
+
+	/* Align target to word: first byte then half word */
+	if ((unsigned long)buf & 1) {
+		outb(*(u8 *)buf, io);
+		buf++;
+		len--;
+	}
+	if (((unsigned long)buf & 2) && (len >= 2)) {
+		outw(*(u16 *)buf, io);
+		buf += 2;
+		len -= 2;
+	}
+	/* Transfer words, then remaining halfword and remaining byte */
+	if (len >= 4) {
+		outsl(io, buf, len >> 2);
+		buf += len & ~(size_t)3;
+	}
+	if (len & 2) {
+		outw(*(u16 *)buf, io);
+		buf += 2;
+	}
+	if (len & 1) {
+		outb(*(u8 *)buf, io);
+	}
+}
 
 enum smc_flash_type {
 	smc_type_nor = 0,	/* controller connected to nor flash */
@@ -165,8 +259,8 @@ static int aspeed_smc_read_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 	struct aspeed_smc_chip *chip = nor->priv;
 
 	aspeed_smc_start_user(nor);
-	writeb(opcode, chip->base);
-	_memcpy_fromio(buf, chip->base, len);
+	aspeed_smc_to_fifo(chip->base, &opcode, 1);
+	aspeed_smc_from_fifo(buf, chip->base, len);
 	aspeed_smc_stop_user(nor);
 
 	return 0;
@@ -178,8 +272,8 @@ static int aspeed_smc_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf,
 	struct aspeed_smc_chip *chip = nor->priv;
 
 	aspeed_smc_start_user(nor);
-	writeb(opcode, chip->base);
-	_memcpy_toio(chip->base, buf, len);
+	aspeed_smc_to_fifo(chip->base, &opcode, 1);
+	aspeed_smc_to_fifo(chip->base, buf, len);
 	aspeed_smc_stop_user(nor);
 
 	return 0;
@@ -202,12 +296,12 @@ static void aspeed_smc_send_cmd_addr(struct spi_nor *nor, u8 cmd, u32 addr)
 		cmdaddr |= (u32)cmd << 24;
 
 		temp = cpu_to_be32(cmdaddr);
-		memcpy_toio(chip->base, &temp, 4);
+		aspeed_smc_to_fifo(chip->base, &temp, 4);
 		break;
 	case 4:
 		temp = cpu_to_be32(addr);
-		writeb(cmd, chip->base);
-		memcpy_toio(chip->base, &temp, 4);
+		aspeed_smc_to_fifo(chip->base, &cmd, 1);
+		aspeed_smc_to_fifo(chip->base, &temp, 4);
 		break;
 	}
 }
@@ -219,7 +313,7 @@ static int aspeed_smc_read_user(struct spi_nor *nor, loff_t from, size_t len,
 
 	aspeed_smc_start_user(nor);
 	aspeed_smc_send_cmd_addr(nor, nor->read_opcode, from);
-	memcpy_fromio(read_buf, chip->base, len);
+	aspeed_smc_from_fifo(read_buf, chip->base, len);
 	*retlen += len;
 	aspeed_smc_stop_user(nor);
 
@@ -233,7 +327,7 @@ static void aspeed_smc_write_user(struct spi_nor *nor, loff_t to, size_t len,
 
 	aspeed_smc_start_user(nor);
 	aspeed_smc_send_cmd_addr(nor, nor->program_opcode, to);
-	memcpy_toio(chip->base, write_buf, len);
+	aspeed_smc_to_fifo(chip->base, write_buf, len);
 	*retlen += len;
 	aspeed_smc_stop_user(nor);
 }
@@ -291,6 +385,14 @@ static int aspeed_smc_probe(struct platform_device *dev)
 	struct device_node *child;
 	int err = 0;
 	unsigned int n;
+
+	/*
+	 * This driver passes ioremap addresses to io port accessors.
+	 * This works on arm if the IO_SPACE_LIMIT does not truncate
+	 * the address.
+	 */
+	if (~(unsigned long)IO_SPACE_LIMIT)
+		return -ENODEV;
 
 	match = of_match_device(aspeed_smc_matches, &dev->dev);
 	if (!match || !match->data)

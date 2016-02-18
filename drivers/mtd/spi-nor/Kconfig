@@ -44,6 +44,8 @@ config ASPEED_FLASH_SPI
 	tristate "Aspeed flash controllers in SPI mode"
 	depends on HAS_IOMEM && OF
 	depends on ARCH_ASPEED || COMPILE_TEST
+	# IO_SPACE_LIMIT must be equivalent to (~0UL)
+	depends on !NEED_MACH_IO_H
 	help
 	  This enables support for the New Static Memory Controller (FMC)
 	  in the AST2400 when attached to SPI nor chips, and support for
