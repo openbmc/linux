@@ -191,9 +191,10 @@ static void __init aspeed_init_early(void)
 	writel(0, AST_IO(AST_BASE_WDT | 0x2c));
 
 	/*
-	 * ensure all IPs are reset on watchdog expiry
+	 * ensure all IPs except GPIO and LPC are reset on watchdog expiry
 	 */
-	writel(0x003ffff3, AST_IO(AST_BASE_SCU | 0x9C));
+	writel(0x001fdff3, AST_IO(AST_BASE_SCU | 0x9C));
+	//writel(0x003ffff3, AST_IO(AST_BASE_SCU | 0x9C));
 
 	/*
 	 * Temporary setup of AST registers until pinmux driver is complete
