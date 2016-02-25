@@ -907,10 +907,10 @@ void ncsi_stop_dev(struct ncsi_dev *nd)
 	struct ncsi_dev_priv *ndp = TO_NCSI_DEV_PRIV(nd);
 	struct ncsi_package *tmp, *np;
 
-	spin_lock(&ndp->ndp_package_lock);
+	spin_lock_bh(&ndp->ndp_package_lock);
 	list_for_each_entry_safe(np, tmp, &ndp->ndp_packages, np_node)
 		ncsi_release_package(np);
-	spin_unlock(&ndp->ndp_package_lock);
+	spin_unlock_bh(&ndp->ndp_package_lock);
 }
 EXPORT_SYMBOL_GPL(ncsi_stop_dev);
 
