@@ -24,7 +24,7 @@
 #include <linux/bitops.h>
 #include "pmbus.h"
 
-enum chips { adm1075, adm1275, adm1276, adm1293, adm1294 };
+enum chips { adm1075, adm1275, adm1276, adm1278, adm1293, adm1294 };
 
 #define ADM1275_MFR_STATUS_IOUT_WARN2	BIT(0)
 #define ADM1293_MFR_STATUS_VAUX_UV_WARN	BIT(5)
@@ -69,6 +69,22 @@ enum chips { adm1075, adm1275, adm1276, adm1293, adm1294 };
 
 #define ADM1075_VAUX_OV_WARN		BIT(7)
 #define ADM1075_VAUX_UV_WARN		BIT(6)
+
+#define ADM1278_PMON_CONTROL		0xd3
+#define ADM1278_PMON_CONFIG		0xd4
+#define ADM1278_CFG_TSFLT		BIT(15)
+#define ADM1278_CFG_SIMULTANEOUS	BIT(14)
+#define ADM1278_CFG_PMON_MODE		BIT(4)
+#define ADM1278_CFG_TEMP1_EN		BIT(3)
+#define ADM1278_CFG_VIN_EN		BIT(2)
+#define ADM1278_CFG_VOUT_EN		BIT(1)
+#define ADM1278_PEAK_TEMPERATURE	0xd7
+
+#define ADM1278_R_SENSE	1000	/* R_sense resistor value in microohms */
+
+static int r_sense = ADM1278_R_SENSE;
+module_param(r_sense, int, 0644);
+MODULE_PARM_DESC(r_sense, "Rsense resistor value in microohms");
 
 struct adm1275_data {
 	int id;
@@ -186,6 +202,11 @@ static int adm1275_read_word_data(struct i2c_client *client, int page, int reg)
 	case PMBUS_VIRT_READ_VIN_MAX:
 		ret = pmbus_read_word_data(client, 0, ADM1275_PEAK_VIN);
 		break;
+	case PMBUS_VIRT_READ_TEMP_MAX:
+		if (data->id != adm1278)
+			return -ENODATA;
+		ret = pmbus_read_word_data(client, 0, ADM1278_PEAK_TEMPERATURE);
+		break;
 	case PMBUS_VIRT_READ_PIN_MIN:
 		if (!data->have_pin_min)
 			return -ENXIO;
@@ -199,6 +220,7 @@ static int adm1275_read_word_data(struct i2c_client *client, int page, int reg)
 	case PMBUS_VIRT_RESET_IOUT_HISTORY:
 	case PMBUS_VIRT_RESET_VOUT_HISTORY:
 	case PMBUS_VIRT_RESET_VIN_HISTORY:
+	case PMBUS_VIRT_RESET_TEMP_HISTORY:
 		break;
 	case PMBUS_VIRT_RESET_PIN_HISTORY:
 		if (!data->have_pin_max)
@@ -238,6 +260,10 @@ static int adm1275_write_word_data(struct i2c_client *client, int page, int reg,
 		break;
 	case PMBUS_VIRT_RESET_VIN_HISTORY:
 		ret = pmbus_write_word_data(client, 0, ADM1275_PEAK_VIN, 0);
+		break;
+	case PMBUS_VIRT_RESET_TEMP_HISTORY:
+		ret = pmbus_write_word_data(client, 0, ADM1278_PEAK_TEMPERATURE,
+						0);
 		break;
 	case PMBUS_VIRT_RESET_PIN_HISTORY:
 		ret = pmbus_write_word_data(client, 0, ADM1276_PEAK_PIN, 0);
@@ -312,6 +338,7 @@ static const struct i2c_device_id adm1275_id[] = {
 	{ "adm1075", adm1075 },
 	{ "adm1275", adm1275 },
 	{ "adm1276", adm1276 },
+	{ "adm1278", adm1278 },
 	{ "adm1293", adm1293 },
 	{ "adm1294", adm1294 },
 	{ }
@@ -321,12 +348,12 @@ MODULE_DEVICE_TABLE(i2c, adm1275_id);
 static int adm1275_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
-	u8 block_buffer[I2C_SMBUS_BLOCK_MAX + 1];
+	/* u8 block_buffer[I2C_SMBUS_BLOCK_MAX + 1]; */
 	int config, device_config;
 	int ret;
 	struct pmbus_driver_info *info;
 	struct adm1275_data *data;
-	const struct i2c_device_id *mid;
+	/* const struct i2c_device_id *mid; */
 	const struct coefficients *coefficients;
 	int vindex = -1, voindex = -1, cindex = -1, pindex = -1;
 
@@ -335,6 +362,11 @@ static int adm1275_probe(struct i2c_client *client,
 				     | I2C_FUNC_SMBUS_BLOCK_DATA))
 		return -ENODEV;
 
+	/* i2c_aspeed driver does not handle
+	 * i2c_smbus_read_block_data() correctly.
+	 * Disable the code until been fixed.
+	 */
+#if 0
 	ret = i2c_smbus_read_block_data(client, PMBUS_MFR_ID, block_buffer);
 	if (ret < 0) {
 		dev_err(&client->dev, "Failed to read Manufacturer ID\n");
@@ -363,6 +395,7 @@ static int adm1275_probe(struct i2c_client *client,
 		dev_notice(&client->dev,
 			   "Device mismatch: Configured %s, detected %s\n",
 			   id->name, mid->name);
+#endif
 
 	config = i2c_smbus_read_byte_data(client, ADM1275_PMON_CONFIG);
 	if (config < 0)
@@ -377,7 +410,12 @@ static int adm1275_probe(struct i2c_client *client,
 	if (!data)
 		return -ENOMEM;
 
-	data->id = mid->driver_data;
+	/* i2c_aspeed driver does not handle
+	 * i2c_smbus_read_block_data() correctly.
+	 * Disable the code until been fixed.
+	 */
+	/* data->id = mid->driver_data; */
+	data->id = adm1278;
 
 	info = &data->info;
 
@@ -459,6 +497,62 @@ static int adm1275_probe(struct i2c_client *client,
 		if (config & ADM1275_VIN_VOUT_SELECT)
 			info->func[0] |=
 			  PMBUS_HAVE_VOUT | PMBUS_HAVE_STATUS_VOUT;
+		break;
+	case adm1278:
+		ret = i2c_smbus_write_byte_data(client,
+			ADM1278_PMON_CONTROL, 0);
+		if (ret < 0)
+			return ret;
+		ret = i2c_smbus_read_word_data(client, ADM1275_PMON_CONFIG);
+		ret = i2c_smbus_write_word_data(client, ADM1275_PMON_CONFIG,
+						ADM1278_CFG_PMON_MODE |
+						ADM1278_CFG_TEMP1_EN |
+						ADM1278_CFG_VIN_EN |
+						ADM1278_CFG_VOUT_EN);
+		if (ret < 0)
+			return ret;
+		ret = i2c_smbus_read_word_data(client, ADM1275_PMON_CONFIG);
+		dev_dbg(&client->dev, "adm1278 config: 0x%x\n", ret);
+		ret = i2c_smbus_write_byte_data(client,
+			ADM1278_PMON_CONTROL, 1);
+		if (ret < 0)
+			return ret;
+
+		info->func[0] |= PMBUS_HAVE_VIN
+			| PMBUS_HAVE_VOUT | PMBUS_HAVE_STATUS_VOUT
+			| PMBUS_HAVE_PIN
+			| PMBUS_HAVE_STATUS_INPUT
+			| PMBUS_HAVE_TEMP | PMBUS_HAVE_STATUS_TEMP;
+
+		data->have_oc_fault = false;
+		data->have_uc_fault = false;
+		data->have_vout = true;
+		data->have_vaux_status = false;
+		data->have_mfr_vaux_status = false;
+		data->have_iout_min = false;
+		data->have_pin_min = false;
+		data->have_pin_max = true;
+
+		info->m[PSC_VOLTAGE_IN] = 19599;
+		info->b[PSC_VOLTAGE_IN] = 0;
+		info->R[PSC_VOLTAGE_IN] = -2;
+
+		info->m[PSC_VOLTAGE_OUT] = 19599;
+		info->b[PSC_VOLTAGE_OUT] = 0;
+		info->R[PSC_VOLTAGE_OUT] = -2;
+
+		info->m[PSC_CURRENT_OUT] = 800 * r_sense / 1000;
+		info->b[PSC_CURRENT_OUT] = 20475;
+		info->R[PSC_CURRENT_OUT] = -1;
+
+		info->m[PSC_POWER] = 6123 * r_sense / 1000;
+		info->b[PSC_POWER] = 0;
+		info->R[PSC_POWER] = -2;
+
+		info->format[PSC_TEMPERATURE] = direct;
+		info->m[PSC_TEMPERATURE] = 42;
+		info->b[PSC_TEMPERATURE] = 31880;
+		info->R[PSC_TEMPERATURE] = -1;
 		break;
 	case adm1293:
 	case adm1294:
