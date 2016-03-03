@@ -348,7 +348,7 @@ err:
 
 static inline uint16_t get_occdata_length(uint8_t *data)
 {
-	return be16_to_cpup(&data[RESP_DATA_LENGTH]);
+	return be16_to_cpup((const __be16 *)&data[RESP_DATA_LENGTH]);
 }
 
 static int parse_occ_response(struct i2c_client *client,
@@ -370,7 +370,7 @@ static int parse_occ_response(struct i2c_client *client,
 
 	/* check if the data is valid */
 	if (strncmp(&data[SENSOR_STR_OFFSET], "SENSOR", 6) != 0) {
-		dev_err(&client->dev,
+		dev_dbg(&client->dev,
 			"ERROR: no SENSOR String in response\n");
 		ret = -1;
 		goto err;
@@ -378,7 +378,7 @@ static int parse_occ_response(struct i2c_client *client,
 
 	sensor_block_num = data[SENSOR_BLOCK_NUM_OFFSET];
 	if (sensor_block_num == 0) {
-		dev_err(&client->dev, "ERROR: SENSOR block num is 0\n");
+		dev_dbg(&client->dev, "ERROR: SENSOR block num is 0\n");
 		ret = -1;
 		goto err;
 	}
@@ -421,8 +421,11 @@ static int parse_occ_response(struct i2c_client *client,
 			resp->freq_block_id = b;
 			for (s = 0; s < num_of_sensors; s++) {
 				f_sensor = &resp->blocks[b].sensor[s];
-				f_sensor->sensor_id = be16_to_cpup(&data[dnum]);
-				f_sensor->value = be16_to_cpup(&data[dnum+2]);
+				f_sensor->sensor_id =
+					be16_to_cpup((const __be16 *)
+							&data[dnum]);
+				f_sensor->value = be16_to_cpup((const __be16 *)
+							&data[dnum+2]);
 				dev_dbg(&client->dev,
 					"sensor[%d]-[%d]: id: %u, value: %u\n",
 					b, s, f_sensor->sensor_id,
@@ -438,8 +441,11 @@ static int parse_occ_response(struct i2c_client *client,
 			resp->temp_block_id = b;
 			for (s = 0; s < num_of_sensors; s++) {
 				t_sensor = &resp->blocks[b].sensor[s];
-				t_sensor->sensor_id = be16_to_cpup(&data[dnum]);
-				t_sensor->value = be16_to_cpup(&data[dnum+2]);
+				t_sensor->sensor_id =
+					be16_to_cpup((const __be16 *)
+							&data[dnum]);
+				t_sensor->value = be16_to_cpup((const __be16 *)
+							&data[dnum+2]);
 				dev_dbg(&client->dev,
 					"sensor[%d]-[%d]: id: %u, value: %u\n",
 					b, s, t_sensor->sensor_id,
@@ -455,12 +461,17 @@ static int parse_occ_response(struct i2c_client *client,
 			resp->power_block_id = b;
 			for (s = 0; s < num_of_sensors; s++) {
 				p_sensor = &resp->blocks[b].power[s];
-				p_sensor->sensor_id = be16_to_cpup(&data[dnum]);
+				p_sensor->sensor_id =
+					be16_to_cpup((const __be16 *)
+							&data[dnum]);
 				p_sensor->update_tag =
-					be32_to_cpup(&data[dnum+2]);
+					be32_to_cpup((const __be32 *)
+							&data[dnum+2]);
 				p_sensor->accumulator =
-					be32_to_cpup(&data[dnum+6]);
-				p_sensor->value = be16_to_cpup(&data[dnum+10]);
+					be32_to_cpup((const __be32 *)
+							&data[dnum+6]);
+				p_sensor->value = be16_to_cpup((const __be16 *)
+							&data[dnum+10]);
 
 				dev_dbg(&client->dev,
 					"sensor[%d]-[%d]: id: %u, value: %u\n",
@@ -479,17 +490,23 @@ static int parse_occ_response(struct i2c_client *client,
 			for (s = 0; s < num_of_sensors; s++) {
 				c_sensor = &resp->blocks[b].caps[s];
 				c_sensor->curr_powercap =
-					be16_to_cpup(&data[dnum]);
+					be16_to_cpup((const __be16 *)
+							&data[dnum]);
 				c_sensor->curr_powerreading =
-					be16_to_cpup(&data[dnum+2]);
+					be16_to_cpup((const __be16 *)
+							&data[dnum+2]);
 				c_sensor->norm_powercap =
-					be16_to_cpup(&data[dnum+4]);
+					be16_to_cpup((const __be16 *)
+							&data[dnum+4]);
 				c_sensor->max_powercap =
-					be16_to_cpup(&data[dnum+6]);
+					be16_to_cpup((const __be16 *)
+							&data[dnum+6]);
 				c_sensor->min_powercap =
-					be16_to_cpup(&data[dnum+8]);
+					be16_to_cpup((const __be16 *)
+							&data[dnum+8]);
 				c_sensor->user_powerlimit =
-					be16_to_cpup(&data[dnum+10]);
+					be16_to_cpup((const __be16 *)
+							&data[dnum+10]);
 
 				dnum = dnum + sensor_length;
 				dev_dbg(&client->dev, "CAPS sensor #%d:\n", s);
@@ -509,7 +526,7 @@ static int parse_occ_response(struct i2c_client *client,
 			}
 
 		} else {
-			dev_err(&client->dev,
+			dev_dbg(&client->dev,
 				"ERROR: sensor type %s not supported\n",
 				resp->blocks[b].sensor_type);
 			ret = -1;
@@ -539,6 +556,7 @@ static uint8_t occ_send_cmd(struct i2c_client *client, uint8_t seq,
 	uint16_t checksum;
 	int i;
 
+	length = cpu_to_le16(length);
 	cmd1 = (seq << 24) | (type << 16) | length;
 	memcpy(&cmd2, data, length);
 	cmd2 <<= ((4 - length) * 8);
@@ -599,13 +617,13 @@ static int occ_get_all(struct i2c_client *client, struct occ_response *occ_resp)
 	dev_dbg(&client->dev, "OCC data length: %d\n", num_bytes);
 
 	if (num_bytes > OCC_DATA_MAX) {
-		dev_err(&client->dev, "ERROR: OCC data length must be < 4KB\n");
+		dev_dbg(&client->dev, "ERROR: OCC data length must be < 4KB\n");
 		ret = -EINVAL;
 		goto out;
 	}
 
 	if (num_bytes <= 0) {
-		dev_err(&client->dev, "ERROR: OCC data length is zero\n");
+		dev_dbg(&client->dev, "ERROR: OCC data length is zero\n");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -652,7 +670,7 @@ static void *occ_get_sensor(struct device *hwmon_dev, enum sensor_t t)
 
 	ret = occ_update_device(dev);
 	if (ret != 0) {
-		dev_err(dev, "ERROR: cannot get occ sensor data: %d\n", ret);
+		dev_dbg(dev, "ERROR: cannot get occ sensor data: %d\n", ret);
 		return NULL;
 	}
 
@@ -1132,7 +1150,6 @@ static ssize_t set_user_powercap(struct device *hwmon_dev,
 	struct occ_drv_data *data = dev_get_drvdata(dev);
 	struct i2c_client *client = data->client;
 	uint16_t val;
-	uint32_t powercap;
 	uint8_t resp[8];
 	int err;
 
@@ -1140,13 +1157,16 @@ static ssize_t set_user_powercap(struct device *hwmon_dev,
 	if (err)
 		return err;
 
-	dev_dbg(dev, "set user powercap to: %lu\n", val);
-	err = occ_send_cmd(client, 0, 0x22, 2, &val, resp);
+	dev_dbg(dev, "set user powercap to: %u\n", val);
+	val = cpu_to_le16(val);
+	err = occ_send_cmd(client, 0, 0x22, 2, (uint8_t *)&val, resp);
 	if (err != 0) {
-		dev_err(dev, "Set User Powercap: wrong return status: %x\n",
+		dev_dbg(dev,
+			"ERROR: Set User Powercap: wrong return status: %x\n",
 			err);
 		if (err == 0x13)
-			dev_err(dev, "invalid powercap value: %x\n", val);
+			dev_info(dev,
+				"ERROR: set invalid powercap value: %x\n", val);
 		return -EINVAL;
 	}
 	data->user_powercap = val;
@@ -1201,7 +1221,7 @@ static int occ_create_hwmon_attribute(struct device *dev)
 
 	ret = occ_update_device(dev);
 	if (ret != 0) {
-		dev_err(dev, "ERROR: cannot get occ sensor data: %d\n", ret);
+		dev_dbg(dev, "ERROR: cannot get occ sensor data: %d\n", ret);
 		return ret;
 	}
 
@@ -1226,7 +1246,8 @@ static int occ_create_hwmon_attribute(struct device *dev)
 			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
 				&occ_temp_attr_group[i]);
 			if (ret) {
-				dev_err(dev, "error create temp sysfs entry\n");
+				dev_dbg(dev,
+					"ERROR: cannot create sysfs entry\n");
 				goto error;
 			}
 		}
@@ -1240,7 +1261,8 @@ static int occ_create_hwmon_attribute(struct device *dev)
 			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
 				&occ_freq_attr_group[i]);
 			if (ret) {
-				dev_err(dev, "error create freq sysfs entry\n");
+				dev_dbg(dev,
+					"ERROR: cannot create sysfs entry\n");
 				goto error;
 			}
 		}
@@ -1254,7 +1276,8 @@ static int occ_create_hwmon_attribute(struct device *dev)
 			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
 				&occ_power_attr_group[i]);
 			if (ret) {
-				dev_err(dev, "error create power sysfs entry\n");
+				dev_dbg(dev,
+					"ERROR: cannot create sysfs entry\n");
 				goto error;
 			}
 		}
@@ -1268,7 +1291,8 @@ static int occ_create_hwmon_attribute(struct device *dev)
 			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
 				&occ_caps_attr_group[i]);
 			if (ret) {
-				dev_err(dev, "error create caps sysfs entry\n");
+				dev_dbg(dev,
+					"ERROR: cannot create sysfs entry\n");
 				goto error;
 			}
 		}
