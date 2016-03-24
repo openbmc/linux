@@ -504,7 +504,7 @@ static int aspeed_smc_probe(struct platform_device *dev)
 
 		chip->nor.dev = &cdev->dev;
 		chip->nor.priv = chip;
-		chip->nor.mtd.priv = &chip->nor; /* should be in spi_nor_scan()!! */
+		chip->nor.flash_node = child;
 		chip->nor.mtd.name = of_get_property(child, "label", NULL);
 		chip->nor.erase = aspeed_smc_erase;
 		chip->nor.read = aspeed_smc_read_user;
