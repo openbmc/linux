@@ -6,7 +6,7 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
-#include <mach/ast2400.h>
+#include "ast2400.h"
 
 // XXX TEMP HACKERY
 //
