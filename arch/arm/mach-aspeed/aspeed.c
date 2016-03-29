@@ -119,7 +119,7 @@ static void __init do_common_setup(void)
 	writel(0x01C000FF, AST_IO(AST_BASE_SCU | 0x88));
 	writel(0xC1C000FF, AST_IO(AST_BASE_SCU | 0x8c));
 	writel(0x01C0007F, AST_IO(AST_BASE_SCU | 0x88));
-	writel(0x003FA009, AST_IO(AST_BASE_SCU | 0x90));
+	writel(0x003FA008, AST_IO(AST_BASE_SCU | 0x90));
 
 	/* Setup scratch registers */
 	writel(0x00000042, AST_IO(AST_BASE_LPC | 0x170));
@@ -139,6 +139,10 @@ static void __init do_barreleye_setup(void)
 	/* GPIO setup */
 	writel(0x9E82FCE7, AST_IO(AST_BASE_GPIO | 0x00));
 	writel(0x0370E677, AST_IO(AST_BASE_GPIO | 0x04));
+	
+	/* Barreleye SCU setup for PCIe Inventory */
+	writel(0x01C00000, AST_IO(AST_BASE_SCU | 0x88));    
+
 
 	/*
 	 * Do read/modify/write on power gpio to prevent resetting power on
