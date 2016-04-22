@@ -215,7 +215,9 @@
 				};
 
 				i2c10: i2c-bus@3c0 {
-					reg = <0x380 0x40>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0x3C0 0x40>;
 					compatible = "aspeed,ast2400-i2c-bus";
 					bus = <10>;
 					clock-frequency = <100000>;
@@ -224,6 +226,8 @@
 				};
 
 				i2c11: i2c-bus@400 {
+					#address-cells = <1>;
+					#size-cells = <0>;
 					reg = <0x400 0x40>;
 					compatible = "aspeed,ast2400-i2c-bus";
 					bus = <11>;
@@ -235,7 +239,7 @@
 				i2c12: i2c-bus@440 {
 					#address-cells = <1>;
 					#size-cells = <0>;
-					reg = <0x400 0x40>;
+					reg = <0x440 0x40>;
 					compatible = "aspeed,ast2400-i2c-bus";
 					bus = <12>;
 					clock-frequency = <100000>;
