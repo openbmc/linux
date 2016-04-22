@@ -779,7 +779,8 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += \
 dtb-$(CONFIG_ARCH_ZX) += zx296702-ad1.dtb
 dtb-$(CONFIG_MACH_OPP_PALMETTO_BMC) += \
 	aspeed-bmc-opp-palmetto.dtb \
-	aspeed-bmc-opp-barreleye.dtb
+	aspeed-bmc-opp-barreleye.dtb \
+	aspeed-bmc-opp-garrison.dtb
 endif
 
 dtstree		:= $(srctree)/$(src)
