@@ -171,6 +171,18 @@ static void __init do_palmetto_setup(void)
 	writel(0x01C0007F, AST_IO(AST_BASE_SCU | 0x88));
 }
 
+static void __init do_garrison_setup(void)
+{
+	do_common_setup();
+
+	/* Setup PNOR address mapping for 64M flash */
+	writel(0x30000C00, AST_IO(AST_BASE_LPC | 0x88));
+	writel(0xFC0003FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+	/* SCU setup */
+	writel(0xd7000000, AST_IO(AST_BASE_SCU | 0x88));
+}
+
 #define SCU_PASSWORD	0x1688A8A8
 
 static void __init aspeed_init_early(void)
@@ -207,6 +219,9 @@ static void __init aspeed_init_early(void)
 		do_barreleye_setup();
 	if (of_machine_is_compatible("tyan,palmetto-bmc"))
 		do_palmetto_setup();
+	if (of_machine_is_compatible("ibm,garrison-bmc"))
+		do_garrison_setup();
+
 }
 
 static void __init aspeed_map_io(void)
