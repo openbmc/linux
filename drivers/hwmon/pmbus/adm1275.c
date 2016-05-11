@@ -514,6 +514,19 @@ static int adm1275_probe(struct i2c_client *client,
 		tindex = 3;
 
 		info->func[0] |= PMBUS_HAVE_PIN | PMBUS_HAVE_STATUS_INPUT;
+
+		/* By default when reset VOUT is not enabled */
+		if (!(config & ADM1278_VOUT_EN)) {
+			config |= ADM1278_VOUT_EN;
+			ret = i2c_smbus_write_byte_data(client,
+					ADM1275_PMON_CONFIG, (u8)config);
+			if (ret < 0) {
+				dev_err(&client->dev,
+					"Fail to write ADM1275_PMON_CONFIG\n");
+				return ret;
+			}
+		}
+
 		if (config & ADM1278_TEMP1_EN)
 			info->func[0] |=
 				PMBUS_HAVE_TEMP | PMBUS_HAVE_STATUS_TEMP;
