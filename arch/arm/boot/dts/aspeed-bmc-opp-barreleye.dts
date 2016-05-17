@@ -82,6 +82,11 @@
 						reg = <0x10>;
 						sense-resistor = <500>;
 					};
+					eeprom@54 {
+						compatible = "atmel,24c256";
+						reg = <0x54>;
+						pagesize = <64>;
+					};
 				};
 				i2c5: i2c-bus@180 {
 					adm1278@10 {
