@@ -29,7 +29,6 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 
-
 #define OCC_I2C_ADDR 0x50
 #define OCC_I2C_NAME "occ-i2c"
 
@@ -51,6 +50,16 @@
  */
 #define OCC_COMMAND_ADDR	0xFFFF6000
 #define OCC_RESPONSE_ADDR	0xFFFF7000
+
+#define MAX_SENSOR_ATTR_LEN	32
+
+enum sensor_t {
+	freq,
+	temp,
+	power,
+	caps,
+	MAX_OCC_SENSOR_TYPE
+};
 
 /* OCC sensor data format */
 struct occ_sensor {
@@ -79,7 +88,7 @@ struct sensor_data_block {
 	uint8_t reserved0;
 	uint8_t sensor_format;
 	uint8_t sensor_length;
-	uint8_t num_of_sensors;
+	uint8_t sensor_num;
 	struct occ_sensor *sensor;
 	struct power_sensor *power;
 	struct caps_sensor *caps;
@@ -112,10 +121,21 @@ struct occ_response {
 	struct occ_poll_header header;
 	struct sensor_data_block *blocks;
 	uint16_t chk_sum;
-	int temp_block_id;
-	int freq_block_id;
-	int power_block_id;
-	int caps_block_id;
+	int sensor_block_id[MAX_OCC_SENSOR_TYPE];
+};
+
+struct sensor_attr_data {
+	enum sensor_t type;
+	uint32_t hwmon_index;
+	uint32_t attr_id;
+	char name[MAX_SENSOR_ATTR_LEN];
+	struct device_attribute dev_attr;
+};
+
+struct sensor_group {
+	char *name;
+	struct sensor_attr_data *sattr;
+	struct attribute_group group;
 };
 
 /* data private to each client */
@@ -130,13 +150,7 @@ struct occ_drv_data {
 	unsigned long		occ_online;
 	uint16_t		user_powercap;
 	struct occ_response	occ_resp;
-};
-
-enum sensor_t {
-	freq,
-	temp,
-	power,
-	caps
+	struct sensor_group	sensor_groups[MAX_OCC_SENSOR_TYPE];
 };
 
 static void deinit_occ_resp_buf(struct occ_response *p)
@@ -158,10 +172,9 @@ static void deinit_occ_resp_buf(struct occ_response *p)
 	kfree(p->blocks);
 
 	memset(p, 0, sizeof(*p));
-	p->freq_block_id = -1;
-	p->temp_block_id = -1;
-	p->power_block_id = -1;
-	p->caps_block_id = -1;
+
+	for (i = 0; i < ARRAY_SIZE(p->sensor_block_id); i++)
+		p->sensor_block_id[i] = -1;
 }
 
 static ssize_t occ_i2c_read(struct i2c_client *client, void *buf, size_t count)
@@ -237,33 +250,29 @@ static void *occ_get_sensor_by_type(struct occ_response *resp, enum sensor_t t)
 	if (!resp->blocks)
 		return NULL;
 
+	if (resp->sensor_block_id[t] == -1)
+		return NULL;
+
 	switch (t) {
 	case temp:
-		sensor = (resp->temp_block_id == -1) ? NULL :
-			resp->blocks[resp->temp_block_id].sensor;
-		break;
 	case freq:
-		sensor = (resp->freq_block_id == -1) ? NULL :
-			resp->blocks[resp->freq_block_id].sensor;
+		sensor = resp->blocks[resp->sensor_block_id[t]].sensor;
 		break;
 	case power:
-		sensor = (resp->power_block_id == -1) ? NULL :
-			resp->blocks[resp->power_block_id].power;
+		sensor = resp->blocks[resp->sensor_block_id[t]].power;
 		break;
 	case caps:
-		sensor = (resp->caps_block_id == -1) ? NULL :
-			resp->blocks[resp->caps_block_id].caps;
+		sensor = resp->blocks[resp->sensor_block_id[t]].caps;
 		break;
 	default:
 		sensor = NULL;
-		break;
 	}
 
 	return sensor;
 }
 
 static int occ_renew_sensor(struct occ_response *resp, uint8_t sensor_length,
-	uint8_t num_of_sensors, enum sensor_t t, int block)
+	uint8_t sensor_num, enum sensor_t t, int block)
 {
 	void *sensor;
 	int ret;
@@ -271,67 +280,48 @@ static int occ_renew_sensor(struct occ_response *resp, uint8_t sensor_length,
 	sensor = occ_get_sensor_by_type(resp, t);
 
 	/* empty sensor block, release older sensor data */
-	if (num_of_sensors == 0 || sensor_length == 0) {
+	if (sensor_num == 0 || sensor_length == 0) {
 		kfree(sensor);
 		return -1;
 	}
 
-	switch (t) {
-	case temp:
-		if (!sensor || num_of_sensors !=
-			resp->blocks[resp->temp_block_id].num_of_sensors) {
-			kfree(sensor);
+	if (!sensor || sensor_num !=
+			resp->blocks[resp->sensor_block_id[t]].sensor_num) {
+		kfree(sensor);
+		switch (t) {
+		case temp:
+		case freq:
 			resp->blocks[block].sensor =
-				kcalloc(num_of_sensors,
+				kcalloc(sensor_num,
 					sizeof(struct occ_sensor), GFP_KERNEL);
 			if (!resp->blocks[block].sensor) {
 				ret = -ENOMEM;
 				goto err;
 			}
-		}
-		break;
-	case freq:
-		if (!sensor || num_of_sensors !=
-			resp->blocks[resp->freq_block_id].num_of_sensors) {
-			kfree(sensor);
-			resp->blocks[block].sensor =
-				kcalloc(num_of_sensors,
-					sizeof(struct occ_sensor), GFP_KERNEL);
-			if (!resp->blocks[block].sensor) {
-				ret = -ENOMEM;
-				goto err;
-			}
-		}
-		break;
-	case power:
-		if (!sensor || num_of_sensors !=
-			resp->blocks[resp->power_block_id].num_of_sensors) {
-			kfree(sensor);
+			break;
+		case power:
 			resp->blocks[block].power =
-				kcalloc(num_of_sensors,
-				sizeof(struct power_sensor), GFP_KERNEL);
+				kcalloc(sensor_num,
+					sizeof(struct power_sensor),
+					GFP_KERNEL);
 			if (!resp->blocks[block].power) {
 				ret = -ENOMEM;
 				goto err;
 			}
-		}
-		break;
-	case caps:
-		if (!sensor || num_of_sensors !=
-			resp->blocks[resp->caps_block_id].num_of_sensors) {
-			kfree(sensor);
+			break;
+		case caps:
 			resp->blocks[block].caps =
-				kcalloc(num_of_sensors,
+				kcalloc(sensor_num,
 					sizeof(struct caps_sensor), GFP_KERNEL);
 			if (!resp->blocks[block].caps) {
 				ret = -ENOMEM;
 				goto err;
 			}
+			break;
+		default:
+			ret = -ENOMEM;
+			goto err;
 		}
-		break;
-	default:
-		sensor = NULL;
-		break;
 	}
 
 	return 0;
@@ -366,7 +356,7 @@ static int parse_occ_response(struct i2c_client *client,
 	uint8_t sensor_type[4];
 	uint8_t sensor_format;
 	uint8_t sensor_length;
-	uint8_t num_of_sensors;
+	uint8_t sensor_num;
 
 	/* check if the data is valid */
 	if (strncmp(&data[SENSOR_STR_OFFSET], "SENSOR", 6) != 0) {
@@ -405,21 +395,21 @@ static int parse_occ_response(struct i2c_client *client,
 		strncpy(sensor_type, &data[dnum], 4);
 		sensor_format = data[dnum+5];
 		sensor_length = data[dnum+6];
-		num_of_sensors = data[dnum+7];
+		sensor_num = data[dnum+7];
 		dnum = dnum + 8;
 
 		dev_dbg(&client->dev,
-			"sensor block[%d]: type: %s, num_of_sensors: %d\n",
-			b, sensor_type, num_of_sensors);
+			"sensor block[%d]: type: %s, sensor_num: %d\n",
+			b, sensor_type, sensor_num);
 
 		if (strncmp(sensor_type, "FREQ", 4) == 0) {
 			ret = occ_renew_sensor(resp, sensor_length,
-				num_of_sensors, freq, b);
+				sensor_num, freq, b);
 			if (ret)
 				continue;
 
-			resp->freq_block_id = b;
-			for (s = 0; s < num_of_sensors; s++) {
+			resp->sensor_block_id[freq] = b;
+			for (s = 0; s < sensor_num; s++) {
 				f_sensor = &resp->blocks[b].sensor[s];
 				f_sensor->sensor_id =
 					be16_to_cpup((const __be16 *)
@@ -434,12 +424,12 @@ static int parse_occ_response(struct i2c_client *client,
 			}
 		} else if (strncmp(sensor_type, "TEMP", 4) == 0) {
 			ret = occ_renew_sensor(resp, sensor_length,
-				num_of_sensors, temp, b);
+				sensor_num, temp, b);
 			if (ret)
 				continue;
 
-			resp->temp_block_id = b;
-			for (s = 0; s < num_of_sensors; s++) {
+			resp->sensor_block_id[temp] = b;
+			for (s = 0; s < sensor_num; s++) {
 				t_sensor = &resp->blocks[b].sensor[s];
 				t_sensor->sensor_id =
 					be16_to_cpup((const __be16 *)
@@ -454,12 +444,12 @@ static int parse_occ_response(struct i2c_client *client,
 			}
 		} else if (strncmp(sensor_type, "POWR", 4) == 0) {
 			ret = occ_renew_sensor(resp, sensor_length,
-				num_of_sensors, power, b);
+				sensor_num, power, b);
 			if (ret)
 				continue;
 
-			resp->power_block_id = b;
-			for (s = 0; s < num_of_sensors; s++) {
+			resp->sensor_block_id[power] = b;
+			for (s = 0; s < sensor_num; s++) {
 				p_sensor = &resp->blocks[b].power[s];
 				p_sensor->sensor_id =
 					be16_to_cpup((const __be16 *)
@@ -482,12 +472,12 @@ static int parse_occ_response(struct i2c_client *client,
 			}
 		} else if (strncmp(sensor_type, "CAPS", 4) == 0) {
 			ret = occ_renew_sensor(resp, sensor_length,
-				num_of_sensors, caps, b);
+				sensor_num, caps, b);
 			if (ret)
 				continue;
 
-			resp->caps_block_id = b;
-			for (s = 0; s < num_of_sensors; s++) {
+			resp->sensor_block_id[caps] = b;
+			for (s = 0; s < sensor_num; s++) {
 				c_sensor = &resp->blocks[b].caps[s];
 				c_sensor->curr_powercap =
 					be16_to_cpup((const __be16 *)
@@ -536,7 +526,7 @@ static int parse_occ_response(struct i2c_client *client,
 		strncpy(resp->blocks[b].sensor_type, sensor_type, 4);
 		resp->blocks[b].sensor_format = sensor_format;
 		resp->blocks[b].sensor_length = sensor_length;
-		resp->blocks[b].num_of_sensors = num_of_sensors;
+		resp->blocks[b].sensor_num = sensor_num;
 	}
 
 	return 0;
@@ -677,120 +667,82 @@ static void *occ_get_sensor(struct device *hwmon_dev, enum sensor_t t)
 	return occ_get_sensor_by_type(&data->occ_resp, t);
 }
 
-/* sysfs attributes for hwmon */
-static ssize_t show_occ_temp_input(struct device *hwmon_dev,
-		struct device_attribute *da, char *buf)
+static int occ_get_sensor_value(struct device *hwmon_dev, enum sensor_t t,
+					int index)
 {
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-	int n = attr->index;
-	struct occ_sensor *sensor;
+	void *sensor;
+
+	if (t == caps)
+		return -1;
+
+	sensor = occ_get_sensor(hwmon_dev, t);
+
+	if (!sensor)
+		return -1;
+
+	if (t == power)
+		return ((struct power_sensor *)sensor)[index].value;
+
+	return ((struct occ_sensor *)sensor)[index].value;
+}
+
+static int occ_get_sensor_id(struct device *hwmon_dev, enum sensor_t t,
+					int index)
+{
+	void *sensor;
+
+	if (t == caps)
+		return -1;
+
+	sensor = occ_get_sensor(hwmon_dev, t);
+
+	if (!sensor)
+		return -1;
+
+	if (t == power)
+		return ((struct power_sensor *)sensor)[index].sensor_id;
+
+	return ((struct occ_sensor *)sensor)[index].sensor_id;
+}
+
+/* sysfs attributes for occ hwmon device */
+
+static ssize_t show_input(struct device *hwmon_dev,
+				struct device_attribute *da, char *buf)
+{
+	struct sensor_attr_data *sdata = container_of(da,
+					struct sensor_attr_data, dev_attr);
 	int val;
 
-	sensor = occ_get_sensor(hwmon_dev, temp);
-	if (!sensor)
-		val = -1;
-	else
+	val = occ_get_sensor_value(hwmon_dev, sdata->type,
+					sdata->hwmon_index - 1);
+	if (sdata->type == temp)
 		/* in millidegree Celsius */
-		val = sensor[n].value * 1000;
+		val *= 1000;
 
 	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
 }
 
-static ssize_t show_occ_temp_label(struct device *hwmon_dev,
-		struct device_attribute *da, char *buf)
+static ssize_t show_label(struct device *hwmon_dev,
+			struct device_attribute *da, char *buf)
 {
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-	int n = attr->index;
-	struct occ_sensor *sensor;
+	struct sensor_attr_data *sdata = container_of(da,
+					struct sensor_attr_data, dev_attr);
 	int val;
 
-	sensor = occ_get_sensor(hwmon_dev, temp);
-	if (!sensor)
-		val = -1;
-	else
-		val = sensor[n].sensor_id;
+	val = occ_get_sensor_id(hwmon_dev, sdata->type,
+					sdata->hwmon_index - 1);
 
 	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
 }
 
-static ssize_t show_occ_power_label(struct device *hwmon_dev,
+static ssize_t show_caps(struct device *hwmon_dev,
 		struct device_attribute *da, char *buf)
 {
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-	int n = attr->index;
-	struct power_sensor *sensor;
-	int val;
-
-	sensor = occ_get_sensor(hwmon_dev, power);
-	if (!sensor)
-		val = -1;
-	else
-		val = sensor[n].sensor_id;
-
-	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
-}
-
-
-static ssize_t show_occ_power_input(struct device *hwmon_dev,
-		struct device_attribute *da, char *buf)
-{
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-	int n = attr->index;
-	struct power_sensor *sensor;
-	int val;
-
-	sensor = occ_get_sensor(hwmon_dev, power);
-	if (!sensor)
-		val = -1;
-	else
-		val = sensor[n].value;
-
-	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
-
-}
-
-
-static ssize_t show_occ_freq_label(struct device *hwmon_dev,
-		struct device_attribute *da, char *buf)
-{
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-	int n = attr->index;
-	struct occ_sensor *sensor;
-	int val;
-
-	sensor = occ_get_sensor(hwmon_dev, freq);
-	if (!sensor)
-		val = -1;
-	else
-		val = sensor[n].sensor_id;
-
-	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
-}
-
-
-static ssize_t show_occ_freq_input(struct device *hwmon_dev,
-		struct device_attribute *da, char *buf)
-{
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-	int n = attr->index;
-	struct occ_sensor *sensor;
-	int val;
-
-	sensor = occ_get_sensor(hwmon_dev, freq);
-	if (!sensor)
-		val = -1;
-	else
-		val = sensor[n].value;
-
-	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
-}
-
-static ssize_t show_occ_caps(struct device *hwmon_dev,
-		struct device_attribute *da, char *buf)
-{
-	struct sensor_device_attribute_2 *attr = to_sensor_dev_attr_2(da);
-	int nr = attr->nr;
-	int n = attr->index;
+	struct sensor_attr_data *sdata = container_of(da,
+					struct sensor_attr_data, dev_attr);
+	int nr = sdata->attr_id;
+	int n = sdata->hwmon_index - 1;
 	struct caps_sensor *sensor;
 	int val;
 
@@ -825,276 +777,6 @@ static ssize_t show_occ_caps(struct device *hwmon_dev,
 
 	return snprintf(buf, PAGE_SIZE - 1, "%d\n", val);
 }
-
-static struct sensor_device_attribute temp_input[] = {
-	SENSOR_ATTR(temp1_input, S_IRUGO, show_occ_temp_input, NULL, 0),
-	SENSOR_ATTR(temp2_input, S_IRUGO, show_occ_temp_input, NULL, 1),
-	SENSOR_ATTR(temp3_input, S_IRUGO, show_occ_temp_input, NULL, 2),
-	SENSOR_ATTR(temp4_input, S_IRUGO, show_occ_temp_input, NULL, 3),
-	SENSOR_ATTR(temp5_input, S_IRUGO, show_occ_temp_input, NULL, 4),
-	SENSOR_ATTR(temp6_input, S_IRUGO, show_occ_temp_input, NULL, 5),
-	SENSOR_ATTR(temp7_input, S_IRUGO, show_occ_temp_input, NULL, 6),
-	SENSOR_ATTR(temp8_input, S_IRUGO, show_occ_temp_input, NULL, 7),
-	SENSOR_ATTR(temp9_input, S_IRUGO, show_occ_temp_input, NULL, 8),
-	SENSOR_ATTR(temp10_input, S_IRUGO, show_occ_temp_input, NULL, 9),
-	SENSOR_ATTR(temp11_input, S_IRUGO, show_occ_temp_input, NULL, 10),
-	SENSOR_ATTR(temp12_input, S_IRUGO, show_occ_temp_input, NULL, 11),
-	SENSOR_ATTR(temp13_input, S_IRUGO, show_occ_temp_input, NULL, 12),
-	SENSOR_ATTR(temp14_input, S_IRUGO, show_occ_temp_input, NULL, 13),
-	SENSOR_ATTR(temp15_input, S_IRUGO, show_occ_temp_input, NULL, 14),
-	SENSOR_ATTR(temp16_input, S_IRUGO, show_occ_temp_input, NULL, 15),
-	SENSOR_ATTR(temp17_input, S_IRUGO, show_occ_temp_input, NULL, 16),
-	SENSOR_ATTR(temp18_input, S_IRUGO, show_occ_temp_input, NULL, 17),
-	SENSOR_ATTR(temp19_input, S_IRUGO, show_occ_temp_input, NULL, 18),
-	SENSOR_ATTR(temp20_input, S_IRUGO, show_occ_temp_input, NULL, 19),
-	SENSOR_ATTR(temp21_input, S_IRUGO, show_occ_temp_input, NULL, 20),
-	SENSOR_ATTR(temp22_input, S_IRUGO, show_occ_temp_input, NULL, 21),
-};
-
-static struct sensor_device_attribute temp_label[] = {
-	SENSOR_ATTR(temp1_label, S_IRUGO, show_occ_temp_label, NULL, 0),
-	SENSOR_ATTR(temp2_label, S_IRUGO, show_occ_temp_label, NULL, 1),
-	SENSOR_ATTR(temp3_label, S_IRUGO, show_occ_temp_label, NULL, 2),
-	SENSOR_ATTR(temp4_label, S_IRUGO, show_occ_temp_label, NULL, 3),
-	SENSOR_ATTR(temp5_label, S_IRUGO, show_occ_temp_label, NULL, 4),
-	SENSOR_ATTR(temp6_label, S_IRUGO, show_occ_temp_label, NULL, 5),
-	SENSOR_ATTR(temp7_label, S_IRUGO, show_occ_temp_label, NULL, 6),
-	SENSOR_ATTR(temp8_label, S_IRUGO, show_occ_temp_label, NULL, 7),
-	SENSOR_ATTR(temp9_label, S_IRUGO, show_occ_temp_label, NULL, 8),
-	SENSOR_ATTR(temp10_label, S_IRUGO, show_occ_temp_label, NULL, 9),
-	SENSOR_ATTR(temp11_label, S_IRUGO, show_occ_temp_label, NULL, 10),
-	SENSOR_ATTR(temp12_label, S_IRUGO, show_occ_temp_label, NULL, 11),
-	SENSOR_ATTR(temp13_label, S_IRUGO, show_occ_temp_label, NULL, 12),
-	SENSOR_ATTR(temp14_label, S_IRUGO, show_occ_temp_label, NULL, 13),
-	SENSOR_ATTR(temp15_label, S_IRUGO, show_occ_temp_label, NULL, 14),
-	SENSOR_ATTR(temp16_label, S_IRUGO, show_occ_temp_label, NULL, 15),
-	SENSOR_ATTR(temp17_label, S_IRUGO, show_occ_temp_label, NULL, 16),
-	SENSOR_ATTR(temp18_label, S_IRUGO, show_occ_temp_label, NULL, 17),
-	SENSOR_ATTR(temp19_label, S_IRUGO, show_occ_temp_label, NULL, 18),
-	SENSOR_ATTR(temp20_label, S_IRUGO, show_occ_temp_label, NULL, 19),
-	SENSOR_ATTR(temp21_label, S_IRUGO, show_occ_temp_label, NULL, 20),
-	SENSOR_ATTR(temp22_label, S_IRUGO, show_occ_temp_label, NULL, 21),
-
-};
-
-#define TEMP_UNIT_ATTRS(X)                      \
-{	&temp_input[X].dev_attr.attr,           \
-	&temp_label[X].dev_attr.attr,          \
-	NULL                                    \
-}
-
-/* 10-core CPU, occ has 22 temp sensors, more socket, more sensors */
-static struct attribute *occ_temp_attr[][3] = {
-	TEMP_UNIT_ATTRS(0),
-	TEMP_UNIT_ATTRS(1),
-	TEMP_UNIT_ATTRS(2),
-	TEMP_UNIT_ATTRS(3),
-	TEMP_UNIT_ATTRS(4),
-	TEMP_UNIT_ATTRS(5),
-	TEMP_UNIT_ATTRS(6),
-	TEMP_UNIT_ATTRS(7),
-	TEMP_UNIT_ATTRS(8),
-	TEMP_UNIT_ATTRS(9),
-	TEMP_UNIT_ATTRS(10),
-	TEMP_UNIT_ATTRS(11),
-	TEMP_UNIT_ATTRS(12),
-	TEMP_UNIT_ATTRS(13),
-	TEMP_UNIT_ATTRS(14),
-	TEMP_UNIT_ATTRS(15),
-	TEMP_UNIT_ATTRS(16),
-	TEMP_UNIT_ATTRS(17),
-	TEMP_UNIT_ATTRS(18),
-	TEMP_UNIT_ATTRS(19),
-	TEMP_UNIT_ATTRS(20),
-	TEMP_UNIT_ATTRS(21),
-};
-
-static const struct attribute_group occ_temp_attr_group[] = {
-	{ .attrs = occ_temp_attr[0] },
-	{ .attrs = occ_temp_attr[1] },
-	{ .attrs = occ_temp_attr[2] },
-	{ .attrs = occ_temp_attr[3] },
-	{ .attrs = occ_temp_attr[4] },
-	{ .attrs = occ_temp_attr[5] },
-	{ .attrs = occ_temp_attr[6] },
-	{ .attrs = occ_temp_attr[7] },
-	{ .attrs = occ_temp_attr[8] },
-	{ .attrs = occ_temp_attr[9] },
-	{ .attrs = occ_temp_attr[10] },
-	{ .attrs = occ_temp_attr[11] },
-	{ .attrs = occ_temp_attr[12] },
-	{ .attrs = occ_temp_attr[13] },
-	{ .attrs = occ_temp_attr[14] },
-	{ .attrs = occ_temp_attr[15] },
-	{ .attrs = occ_temp_attr[16] },
-	{ .attrs = occ_temp_attr[17] },
-	{ .attrs = occ_temp_attr[18] },
-	{ .attrs = occ_temp_attr[19] },
-	{ .attrs = occ_temp_attr[20] },
-	{ .attrs = occ_temp_attr[21] },
-};
-
-
-static struct sensor_device_attribute freq_input[] = {
-	SENSOR_ATTR(freq1_input, S_IRUGO, show_occ_freq_input, NULL, 0),
-	SENSOR_ATTR(freq2_input, S_IRUGO, show_occ_freq_input, NULL, 1),
-	SENSOR_ATTR(freq3_input, S_IRUGO, show_occ_freq_input, NULL, 2),
-	SENSOR_ATTR(freq4_input, S_IRUGO, show_occ_freq_input, NULL, 3),
-	SENSOR_ATTR(freq5_input, S_IRUGO, show_occ_freq_input, NULL, 4),
-	SENSOR_ATTR(freq6_input, S_IRUGO, show_occ_freq_input, NULL, 5),
-	SENSOR_ATTR(freq7_input, S_IRUGO, show_occ_freq_input, NULL, 6),
-	SENSOR_ATTR(freq8_input, S_IRUGO, show_occ_freq_input, NULL, 7),
-	SENSOR_ATTR(freq9_input, S_IRUGO, show_occ_freq_input, NULL, 8),
-	SENSOR_ATTR(freq10_input, S_IRUGO, show_occ_freq_input, NULL, 9),
-};
-
-static struct sensor_device_attribute freq_label[] = {
-	SENSOR_ATTR(freq1_label, S_IRUGO, show_occ_freq_label, NULL, 0),
-	SENSOR_ATTR(freq2_label, S_IRUGO, show_occ_freq_label, NULL, 1),
-	SENSOR_ATTR(freq3_label, S_IRUGO, show_occ_freq_label, NULL, 2),
-	SENSOR_ATTR(freq4_label, S_IRUGO, show_occ_freq_label, NULL, 3),
-	SENSOR_ATTR(freq5_label, S_IRUGO, show_occ_freq_label, NULL, 4),
-	SENSOR_ATTR(freq6_label, S_IRUGO, show_occ_freq_label, NULL, 5),
-	SENSOR_ATTR(freq7_label, S_IRUGO, show_occ_freq_label, NULL, 6),
-	SENSOR_ATTR(freq8_label, S_IRUGO, show_occ_freq_label, NULL, 7),
-	SENSOR_ATTR(freq9_label, S_IRUGO, show_occ_freq_label, NULL, 8),
-	SENSOR_ATTR(freq10_label, S_IRUGO, show_occ_freq_label, NULL, 9),
-
-};
-
-#define FREQ_UNIT_ATTRS(X)                      \
-{	&freq_input[X].dev_attr.attr,           \
-	&freq_label[X].dev_attr.attr,          \
-	NULL                                    \
-}
-
-/* 10-core CPU, occ has 22 freq sensors, more socket, more sensors */
-static struct attribute *occ_freq_attr[][3] = {
-	FREQ_UNIT_ATTRS(0),
-	FREQ_UNIT_ATTRS(1),
-	FREQ_UNIT_ATTRS(2),
-	FREQ_UNIT_ATTRS(3),
-	FREQ_UNIT_ATTRS(4),
-	FREQ_UNIT_ATTRS(5),
-	FREQ_UNIT_ATTRS(6),
-	FREQ_UNIT_ATTRS(7),
-	FREQ_UNIT_ATTRS(8),
-	FREQ_UNIT_ATTRS(9),
-};
-
-static const struct attribute_group occ_freq_attr_group[] = {
-	{ .attrs = occ_freq_attr[0] },
-	{ .attrs = occ_freq_attr[1] },
-	{ .attrs = occ_freq_attr[2] },
-	{ .attrs = occ_freq_attr[3] },
-	{ .attrs = occ_freq_attr[4] },
-	{ .attrs = occ_freq_attr[5] },
-	{ .attrs = occ_freq_attr[6] },
-	{ .attrs = occ_freq_attr[7] },
-	{ .attrs = occ_freq_attr[8] },
-	{ .attrs = occ_freq_attr[9] },
-};
-
-static struct sensor_device_attribute_2 caps_curr_powercap[] = {
-	SENSOR_ATTR_2(caps_curr_powercap, S_IRUGO, show_occ_caps, NULL, 0, 0),
-};
-static struct sensor_device_attribute_2 caps_curr_powerreading[] = {
-	SENSOR_ATTR_2(caps_curr_powerreading, S_IRUGO,
-		show_occ_caps, NULL, 1, 0),
-};
-static struct sensor_device_attribute_2 caps_norm_powercap[] = {
-	SENSOR_ATTR_2(caps_norm_powercap, S_IRUGO, show_occ_caps,
-		NULL, 2, 0),
-};
-static struct sensor_device_attribute_2 caps_max_powercap[] = {
-	SENSOR_ATTR_2(caps_max_powercap, S_IRUGO, show_occ_caps, NULL, 3, 0),
-};
-static struct sensor_device_attribute_2 caps_min_powercap[] = {
-	SENSOR_ATTR_2(caps_min_powercap, S_IRUGO, show_occ_caps, NULL, 4, 0),
-};
-static struct sensor_device_attribute_2 caps_user_powerlimit[] = {
-	SENSOR_ATTR_2(caps_user_powerlimit, S_IRUGO, show_occ_caps, NULL, 5, 0),
-};
-#define CAPS_UNIT_ATTRS(X)                      \
-{	&caps_curr_powercap[X].dev_attr.attr,           \
-	&caps_curr_powerreading[X].dev_attr.attr,           \
-	&caps_norm_powercap[X].dev_attr.attr,           \
-	&caps_max_powercap[X].dev_attr.attr,           \
-	&caps_min_powercap[X].dev_attr.attr,           \
-	&caps_user_powerlimit[X].dev_attr.attr,           \
-	NULL                                    \
-}
-
-/* 10-core CPU, occ has 1 caps sensors */
-static struct attribute *occ_caps_attr[][7] = {
-	CAPS_UNIT_ATTRS(0),
-};
-static const struct attribute_group occ_caps_attr_group[] = {
-	{ .attrs = occ_caps_attr[0] },
-};
-
-static struct sensor_device_attribute power_input[] = {
-	SENSOR_ATTR(power1_input, S_IRUGO, show_occ_power_input, NULL, 0),
-	SENSOR_ATTR(power2_input, S_IRUGO, show_occ_power_input, NULL, 1),
-	SENSOR_ATTR(power3_input, S_IRUGO, show_occ_power_input, NULL, 2),
-	SENSOR_ATTR(power4_input, S_IRUGO, show_occ_power_input, NULL, 3),
-	SENSOR_ATTR(power5_input, S_IRUGO, show_occ_power_input, NULL, 4),
-	SENSOR_ATTR(power6_input, S_IRUGO, show_occ_power_input, NULL, 5),
-	SENSOR_ATTR(power7_input, S_IRUGO, show_occ_power_input, NULL, 6),
-	SENSOR_ATTR(power8_input, S_IRUGO, show_occ_power_input, NULL, 7),
-	SENSOR_ATTR(power9_input, S_IRUGO, show_occ_power_input, NULL, 8),
-	SENSOR_ATTR(power10_input, S_IRUGO, show_occ_power_input, NULL, 9),
-	SENSOR_ATTR(power11_input, S_IRUGO, show_occ_power_input, NULL, 10),
-};
-
-static struct sensor_device_attribute power_label[] = {
-	SENSOR_ATTR(power1_label, S_IRUGO, show_occ_power_label, NULL, 0),
-	SENSOR_ATTR(power2_label, S_IRUGO, show_occ_power_label, NULL, 1),
-	SENSOR_ATTR(power3_label, S_IRUGO, show_occ_power_label, NULL, 2),
-	SENSOR_ATTR(power4_label, S_IRUGO, show_occ_power_label, NULL, 3),
-	SENSOR_ATTR(power5_label, S_IRUGO, show_occ_power_label, NULL, 4),
-	SENSOR_ATTR(power6_label, S_IRUGO, show_occ_power_label, NULL, 5),
-	SENSOR_ATTR(power7_label, S_IRUGO, show_occ_power_label, NULL, 6),
-	SENSOR_ATTR(power8_label, S_IRUGO, show_occ_power_label, NULL, 7),
-	SENSOR_ATTR(power9_label, S_IRUGO, show_occ_power_label, NULL, 8),
-	SENSOR_ATTR(power10_label, S_IRUGO, show_occ_power_label, NULL, 9),
-	SENSOR_ATTR(power11_label, S_IRUGO, show_occ_power_label, NULL, 10),
-};
-
-#define POWER_UNIT_ATTRS(X)                      \
-{	&power_input[X].dev_attr.attr,           \
-	&power_label[X].dev_attr.attr,          \
-	NULL                                    \
-}
-
-/* 10-core CPU, occ has 11 power sensors, more socket, more sensors */
-static struct attribute *occ_power_attr[][3] = {
-	POWER_UNIT_ATTRS(0),
-	POWER_UNIT_ATTRS(1),
-	POWER_UNIT_ATTRS(2),
-	POWER_UNIT_ATTRS(3),
-	POWER_UNIT_ATTRS(4),
-	POWER_UNIT_ATTRS(5),
-	POWER_UNIT_ATTRS(6),
-	POWER_UNIT_ATTRS(7),
-	POWER_UNIT_ATTRS(8),
-	POWER_UNIT_ATTRS(9),
-	POWER_UNIT_ATTRS(10),
-};
-
-static const struct attribute_group occ_power_attr_group[] = {
-	{ .attrs = occ_power_attr[0] },
-	{ .attrs = occ_power_attr[1] },
-	{ .attrs = occ_power_attr[2] },
-	{ .attrs = occ_power_attr[3] },
-	{ .attrs = occ_power_attr[4] },
-	{ .attrs = occ_power_attr[5] },
-	{ .attrs = occ_power_attr[6] },
-	{ .attrs = occ_power_attr[7] },
-	{ .attrs = occ_power_attr[8] },
-	{ .attrs = occ_power_attr[9] },
-	{ .attrs = occ_power_attr[10] },
-};
 
 static ssize_t show_update_interval(struct device *hwmon_dev,
 				struct device_attribute *attr, char *buf)
@@ -1175,137 +857,255 @@ static ssize_t set_user_powercap(struct device *hwmon_dev,
 static DEVICE_ATTR(user_powercap, S_IWUSR | S_IRUGO,
 		show_user_powercap, set_user_powercap);
 
-static void occ_remove_sysfs_files(struct device *dev)
+static void deinit_sensor_groups(struct device *hwmon_dev,
+					struct sensor_group *sensor_groups)
 {
-	int i;
+	int cnt;
 
-	if (!dev)
-		return;
-
-	device_remove_file(dev, &dev_attr_update_interval);
-	device_remove_file(dev, &dev_attr_name);
-	device_remove_file(dev, &dev_attr_user_powercap);
-
-	for (i = 0; i < ARRAY_SIZE(occ_temp_attr_group); i++)
-		sysfs_remove_group(&dev->kobj, &occ_temp_attr_group[i]);
-
-	for (i = 0; i < ARRAY_SIZE(occ_freq_attr_group); i++)
-		sysfs_remove_group(&dev->kobj, &occ_freq_attr_group[i]);
-
-	for (i = 0; i < ARRAY_SIZE(occ_power_attr_group); i++)
-		sysfs_remove_group(&dev->kobj, &occ_power_attr_group[i]);
-
-	for (i = 0; i < ARRAY_SIZE(occ_caps_attr_group); i++)
-		sysfs_remove_group(&dev->kobj, &occ_caps_attr_group[i]);
+	for (cnt = 0; cnt < MAX_OCC_SENSOR_TYPE; cnt++) {
+		if (sensor_groups[cnt].group.attrs)
+			devm_kfree(hwmon_dev, sensor_groups[cnt].group.attrs);
+		if (sensor_groups[cnt].sattr)
+			devm_kfree(hwmon_dev, sensor_groups[cnt].sattr);
+		sensor_groups[cnt].group.attrs = NULL;
+		sensor_groups[cnt].sattr = NULL;
+	}
 }
 
-static int occ_create_hwmon_attribute(struct device *dev)
+static void occ_remove_hwmon_attrs(struct device *hwmon_dev)
 {
-	/* The sensor number varies for different
-	 * platform depending on core number. We'd better
-	 * create them dynamically
-	 */
-	struct occ_drv_data *drv_data = dev_get_drvdata(dev);
+	struct occ_drv_data *data = dev_get_drvdata(hwmon_dev->parent);
+	struct sensor_group *sensor_groups = data->sensor_groups;
 	int i;
-	int num_of_sensors;
+
+	if (!hwmon_dev)
+		return;
+
+	device_remove_file(hwmon_dev, &dev_attr_update_interval);
+	device_remove_file(hwmon_dev, &dev_attr_name);
+	device_remove_file(hwmon_dev, &dev_attr_user_powercap);
+
+	for (i = 0; i < MAX_OCC_SENSOR_TYPE; i++)
+		sysfs_remove_group(&hwmon_dev->kobj, &sensor_groups[i].group);
+
+	deinit_sensor_groups(hwmon_dev, sensor_groups);
+}
+
+static void sensor_attr_init(struct sensor_attr_data *sdata,
+				char *sensor_group_name,
+				char *attr_name,
+				ssize_t (*show)(struct device *dev,
+						struct device_attribute *attr,
+						char *buf))
+{
+	sysfs_attr_init(&sdata->dev_attr.attr);
+
+	snprintf(sdata->name, MAX_SENSOR_ATTR_LEN, "%s%d_%s",
+		sensor_group_name, sdata->hwmon_index, attr_name);
+	sdata->dev_attr.attr.name = sdata->name;
+	sdata->dev_attr.attr.mode = S_IRUGO;
+	sdata->dev_attr.show = show;
+}
+
+/* create hwmon sensor sysfs attributes */
+static int create_sensor_group(struct device *hwmon_dev, enum sensor_t type,
+				int sensor_num)
+{
+	struct occ_drv_data *data = dev_get_drvdata(hwmon_dev->parent);
+	struct sensor_group *sensor_groups = data->sensor_groups;
+	struct sensor_attr_data *sdata;
+	int ret;
+	int cnt;
+
+	/* each sensor has 'label' and 'input' attributes */
+	sensor_groups[type].group.attrs = devm_kzalloc(hwmon_dev,
+						sizeof(struct attribute *) *
+						sensor_num * 2 + 1, GFP_KERNEL);
+	if (!sensor_groups[type].group.attrs) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	sensor_groups[type].sattr = devm_kzalloc(hwmon_dev,
+					sizeof(struct sensor_attr_data) *
+					sensor_num * 2, GFP_KERNEL);
+	if (!sensor_groups[type].sattr) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	for (cnt = 0; cnt < sensor_num; cnt++) {
+		sdata = &sensor_groups[type].sattr[cnt];
+		/* hwomon attributes index starts from 1 */
+		sdata->hwmon_index = cnt + 1;
+		sdata->type = type;
+		sensor_attr_init(sdata, sensor_groups[type].name, "input",
+					show_input);
+		sensor_groups[type].group.attrs[cnt] = &sdata->dev_attr.attr;
+
+		sdata = &sensor_groups[type].sattr[cnt + sensor_num];
+		sdata->hwmon_index = cnt + 1;
+		sdata->type = type;
+		sensor_attr_init(sdata, sensor_groups[type].name, "label",
+					show_label);
+		sensor_groups[type].group.attrs[cnt + sensor_num] =
+			&sdata->dev_attr.attr;
+	}
+
+	ret = sysfs_create_group(&hwmon_dev->kobj, &sensor_groups[type].group);
+	if (ret)
+		goto err;
+
+	return ret;
+err:
+	deinit_sensor_groups(hwmon_dev, sensor_groups);
+	return ret;
+}
+
+static void caps_sensor_attr_init(struct sensor_attr_data *sdata,
+					char *attr_name, uint32_t hwmon_index,
+					uint32_t attr_id)
+{
+	sdata->type = caps;
+	sdata->hwmon_index = hwmon_index;
+	sdata->attr_id = attr_id;
+
+	/* FIXME, to be compatible with user space app, we do not
+	 * generate caps1_* attributes.
+	 */
+	if (sdata->hwmon_index == 1)
+		snprintf(sdata->name, MAX_SENSOR_ATTR_LEN, "%s_%s",
+			"caps", attr_name);
+	else
+		snprintf(sdata->name, MAX_SENSOR_ATTR_LEN, "%s%d_%s",
+			"caps", sdata->hwmon_index, attr_name);
+
+	sysfs_attr_init(&sdata->dev_attr.attr);
+	sdata->dev_attr.attr.name = sdata->name;
+	sdata->dev_attr.attr.mode = S_IRUGO;
+	sdata->dev_attr.show = show_caps;
+}
+
+static char *caps_sensor_name[] = {
+	"curr_powercap",
+	"curr_powerreading",
+	"norm_powercap",
+	"max_powercap",
+	"min_powercap",
+	"user_powerlimit",
+};
+
+static int create_caps_sensor_group(struct device *hwmon_dev, int sensor_num)
+{
+	struct occ_drv_data *data = dev_get_drvdata(hwmon_dev->parent);
+	struct sensor_group *sensor_groups = data->sensor_groups;
+	int field_num = ARRAY_SIZE(caps_sensor_name);
+	struct sensor_attr_data *sdata;
+	int ret;
+	int cnt;
+	int i;
+
+	sensor_groups[caps].group.attrs = devm_kzalloc(hwmon_dev,
+						sizeof(struct attribute *) *
+						sensor_num * field_num + 1,
+						GFP_KERNEL);
+	if (!sensor_groups[caps].group.attrs) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	sensor_groups[caps].sattr = devm_kzalloc(hwmon_dev,
+					sizeof(struct sensor_attr_data) *
+					sensor_num * field_num,
+					GFP_KERNEL);
+	if (!sensor_groups[caps].sattr) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	for (cnt = 0; cnt < sensor_num; cnt++) {
+		for (i = 0; i < field_num; i++) {
+			sdata = &sensor_groups[caps].sattr[cnt * field_num + i];
+			caps_sensor_attr_init(sdata, caps_sensor_name[i],
+						cnt + 1, i);
+			sensor_groups[caps].group.attrs[cnt * field_num + i] =
+						&sdata->dev_attr.attr;
+		}
+	}
+
+	ret = sysfs_create_group(&hwmon_dev->kobj, &sensor_groups[caps].group);
+	if (ret)
+		goto err;
+
+	return ret;
+err:
+	deinit_sensor_groups(hwmon_dev, sensor_groups);
+	return ret;
+}
+
+static int occ_create_hwmon_attrs(struct device *dev)
+{
+	struct occ_drv_data *drv_data = dev_get_drvdata(dev);
+	struct device *hwmon_dev = drv_data->hwmon_dev;
+	struct sensor_group *sensor_groups = drv_data->sensor_groups;
+	int i;
+	int sensor_num;
 	int ret;
 	struct occ_response *rsp;
+	enum sensor_t t;
 
-	/* get sensor number from occ. */
 	rsp = &drv_data->occ_resp;
 
-	rsp->freq_block_id = -1;
-	rsp->temp_block_id = -1;
-	rsp->power_block_id = -1;
-	rsp->caps_block_id = -1;
+	for (i = 0; i < ARRAY_SIZE(rsp->sensor_block_id); i++)
+		rsp->sensor_block_id[i] = -1;
 
+	/* read sensor data from occ. */
 	ret = occ_update_device(dev);
 	if (ret != 0) {
 		dev_dbg(dev, "ERROR: cannot get occ sensor data: %d\n", ret);
 		return ret;
 	}
-
 	if (!rsp->blocks)
 		return -1;
 
-	ret = device_create_file(drv_data->hwmon_dev,
-			&dev_attr_name);
+	ret = device_create_file(hwmon_dev, &dev_attr_name);
 	if (ret)
 		goto error;
 
-	ret = device_create_file(drv_data->hwmon_dev,
-			&dev_attr_update_interval);
+	ret = device_create_file(hwmon_dev, &dev_attr_update_interval);
 	if (ret)
 		goto error;
 
-	/* temp sensors */
-	if (rsp->temp_block_id >= 0) {
-		num_of_sensors =
-			rsp->blocks[rsp->temp_block_id].num_of_sensors;
-		for (i = 0; i < num_of_sensors; i++) {
-			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
-				&occ_temp_attr_group[i]);
-			if (ret) {
-				dev_dbg(dev,
-					"ERROR: cannot create sysfs entry\n");
-				goto error;
-			}
-		}
+	if (rsp->sensor_block_id[caps] >= 0) {
+		/* user powercap: only for master OCC */
+		ret = device_create_file(hwmon_dev, &dev_attr_user_powercap);
+		if (ret)
+			goto error;
 	}
 
-	/* freq sensors */
-	if (rsp->freq_block_id >= 0) {
-		num_of_sensors =
-			rsp->blocks[rsp->freq_block_id].num_of_sensors;
-		for (i = 0; i < num_of_sensors; i++) {
-			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
-				&occ_freq_attr_group[i]);
-			if (ret) {
-				dev_dbg(dev,
-					"ERROR: cannot create sysfs entry\n");
-				goto error;
-			}
-		}
-	}
+	sensor_groups[freq].name = "freq";
+	sensor_groups[temp].name = "temp";
+	sensor_groups[power].name = "power";
+	sensor_groups[caps].name =  "caps";
 
-	/* power sensors */
-	if (rsp->power_block_id >= 0) {
-		num_of_sensors =
-			rsp->blocks[rsp->power_block_id].num_of_sensors;
-		for (i = 0; i < num_of_sensors; i++) {
-			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
-				&occ_power_attr_group[i]);
-			if (ret) {
-				dev_dbg(dev,
-					"ERROR: cannot create sysfs entry\n");
-				goto error;
-			}
-		}
-	}
+	for (t = 0; t < MAX_OCC_SENSOR_TYPE; t++) {
+		if (rsp->sensor_block_id[t] < 0)
+			continue;
 
-	/* caps sensors */
-	if (rsp->caps_block_id >= 0) {
-		num_of_sensors =
-			rsp->blocks[rsp->caps_block_id].num_of_sensors;
-		for (i = 0; i < num_of_sensors; i++) {
-			ret = sysfs_create_group(&drv_data->hwmon_dev->kobj,
-				&occ_caps_attr_group[i]);
-			if (ret) {
-				dev_dbg(dev,
-					"ERROR: cannot create sysfs entry\n");
-				goto error;
-			}
-		}
-		/* only for master OCC */
-		ret = device_create_file(drv_data->hwmon_dev,
-			&dev_attr_user_powercap);
+		sensor_num =
+			rsp->blocks[rsp->sensor_block_id[t]].sensor_num;
+		if (t == caps)
+			ret = create_caps_sensor_group(hwmon_dev, sensor_num);
+		else
+			ret = create_sensor_group(hwmon_dev, t, sensor_num);
 		if (ret)
 			goto error;
 	}
 
 	return 0;
 error:
-	occ_remove_sysfs_files(drv_data->hwmon_dev);
+	dev_err(dev, "ERROR: cannot create hwmon attributes\n");
+	occ_remove_hwmon_attrs(drv_data->hwmon_dev);
 	return ret;
 }
 
@@ -1340,19 +1140,17 @@ static ssize_t set_occ_online(struct device *dev,
 		if (IS_ERR(data->hwmon_dev))
 			return PTR_ERR(data->hwmon_dev);
 
-		err = occ_create_hwmon_attribute(dev);
+		err = occ_create_hwmon_attrs(dev);
 		if (err) {
 			hwmon_device_unregister(data->hwmon_dev);
 			return err;
 		}
 		data->hwmon_dev->parent = dev;
-		dev_dbg(dev, "%s: sensor '%s'\n",
-			dev_name(data->hwmon_dev), data->client->name);
 	} else if (val == 0) {
 		if (data->occ_online == 0)
 			return count;
 
-		occ_remove_sysfs_files(data->hwmon_dev);
+		occ_remove_hwmon_attrs(data->hwmon_dev);
 		hwmon_device_unregister(data->hwmon_dev);
 		data->hwmon_dev = NULL;
 	} else
@@ -1365,9 +1163,9 @@ static ssize_t set_occ_online(struct device *dev,
 static DEVICE_ATTR(online, S_IWUSR | S_IRUGO,
 		show_occ_online, set_occ_online);
 
-static int occ_create_sysfs_attribute(struct device *dev)
+static int occ_create_i2c_sysfs_attr(struct device *dev)
 {
-	/* create a sysfs attribute, to indicate whether OCC is active */
+	/* create an i2c sysfs attribute, to indicate whether OCC is active */
 	return device_create_file(dev, &dev_attr_online);
 }
 
@@ -1392,7 +1190,7 @@ static int occ_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mutex_init(&data->update_lock);
 	data->update_interval = HZ;
 
-	occ_create_sysfs_attribute(dev);
+	occ_create_i2c_sysfs_attr(dev);
 
 	dev_info(dev, "occ i2c driver ready: i2c addr@0x%x\n", client->addr);
 
@@ -1411,7 +1209,7 @@ static int occ_remove(struct i2c_client *client)
 	if (!data->hwmon_dev)
 		return 0;
 
-	occ_remove_sysfs_files(data->hwmon_dev);
+	occ_remove_hwmon_attrs(data->hwmon_dev);
 	hwmon_device_unregister(data->hwmon_dev);
 	return 0;
 }
