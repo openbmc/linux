@@ -141,7 +141,8 @@ static void __init do_barreleye_setup(void)
 
 	/* SCU setup */
 	writel(0x01C00000, AST_IO(AST_BASE_SCU | 0x88));
-
+	/*To enable GPIOE0 pass through function debounce mode.*/
+	writel(0x010FFFFF, AST_IO(AST_BASE_SCU | 0xA8));
 	/*
 	 * Do read/modify/write on power gpio to prevent resetting power on
 	 * reboot
@@ -151,6 +152,11 @@ static void __init do_barreleye_setup(void)
 	writel(reg, AST_IO(AST_BASE_GPIO | 0x20));
 	writel(0xC738F20A, AST_IO(AST_BASE_GPIO | 0x24));
 	writel(0x0031FFAF, AST_IO(AST_BASE_GPIO | 0x80));
+	/*debounce setting, Select GPIO58 as debounce timer*/
+	writel(0x00000001, AST_IO(AST_BASE_GPIO | 0x48));
+	writel(0x00000001, AST_IO(AST_BASE_GPIO | 0x4C));
+	/*After experiment, the suitable time is 20 ms.*/
+	writel(0x00075300, AST_IO(AST_BASE_GPIO | 0x58));
 }
 
 static void __init do_palmetto_setup(void)
