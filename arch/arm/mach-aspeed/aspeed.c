@@ -159,9 +159,9 @@ static void __init do_barreleye_setup(void)
 	writel(0x00000001, AST_IO(AST_BASE_GPIO | 0x48));
 	writel(0x00000001, AST_IO(AST_BASE_GPIO | 0x4C));
 
-	/* Set debounce timer to 480000 cycles, with a pclk of 24MHz,
+	/* Set debounce timer to 480000 cycles, with a pclk of 48MHz,
 	 * corresponds to 20 ms. This time was found by experimentation */
-	writel(0x00075300, AST_IO(AST_BASE_GPIO | 0x58));
+	writel(0x000EA600, AST_IO(AST_BASE_GPIO | 0x58));
 }
 
 static void __init do_palmetto_setup(void)
