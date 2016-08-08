@@ -132,12 +132,15 @@
 
 		heartbeat {
 			gpios = <&gpio 140 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
 		};
 		identify {
 			gpios = <&gpio 58 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
 		};
 		beep {
 			gpios = <&gpio 111 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
 		};
 	};
 };
