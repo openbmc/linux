@@ -1,0 +1,42 @@
+Aspeed GPIO controller Device Tree Bindings
+-------------------------------------------
+
+Required properties:
+- #gpio-cells 		: Should be two
+			  - First cell is the GPIO line number
+			  - Second cell is used to specify optional
+			    parameters (unused)
+
+- compatible		: Either "aspeed,ast2400-gpio" or "aspeed,ast2500-gpio"
+
+- reg			: Address and length of the register set for the device
+- gpio-controller	: Marks the device node as a GPIO controller.
+- interrupts		: Interrupt specifier (see interrupt bindings for
+			  details)
+
+Optional properties:
+- interrupt-controller	: Marks the device node as an interrupt controller.
+- interrupt-parent	: The parent interrupt controller, optional if inherited
+- #interrupt-cells 	: Should be 2.  The first cell is the GPIO number.
+			  The second cell bits[3:0] is used to specify trigger
+			  type and level flags:
+			      1 = low-to-high edge triggered.
+			      2 = high-to-low edge triggered.
+			      4 = active high level-sensitive.
+			      8 = active low level-sensitive.
+
+The gpio and interrupt properties are further described in their respective
+bindings documentation:
+
+- Documentation/devicetree/bindings/gpio/gpio.txt
+- Documentation/devicetree/bindings/interrupt-controller/interrupts.txt
+
+  Example:
+	gpio@1e780000 {
+		#gpio-cells = <2>;
+		compatible = "aspeed,ast2400-gpio"
+		gpio-controller;
+		interrupt-parent = <&intc>;
+		interrupts = <20>;
+		reg = <0x1e780000 0x1000>;
+	};

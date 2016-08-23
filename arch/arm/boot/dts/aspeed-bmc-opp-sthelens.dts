@@ -1,0 +1,147 @@
+/dts-v1/;
+
+#include "ast2400.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Barrelye BMC";
+	compatible = "rackspace,barreleye-bmc", "aspeed,ast2400";
+	ahb {
+		mac0: ethernet@1e660000 {
+			use-nc-si;
+			no-hw-checksum;
+		};
+
+		fmc@1e620000 {
+			reg = < 0x1e620000 0x94
+				0x20000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,fmc";
+			flash@0 {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+				/*
+				 * Possibly required props:
+				 * spi-max-frequency = <>
+				 * spi-tx-bus-width = <>
+				 * spi-rx-bus-width  = <>
+				 * m25p,fast-read
+				 * spi-cpol if inverse clock polarity (CPOL)
+				 * spi-cpha if shifted clock phase (CPHA)
+				 */
+#include "aspeed-bmc-opp-flash-layout.dtsi"
+			};
+		};
+		spi@1e630000 {
+			reg = < 0x1e630000 0x18
+				0x30000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,smc";
+			flash {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+				label = "pnor";
+				/* spi-max-frequency = <>; */
+				/* m25p,fast-read; */
+			};
+		};
+		apb {
+			i2c: i2c@1e78a040 {
+				i2c0: i2c-bus@40 {
+					eeprom@50 {
+						compatible = "atmel,24c256";
+						reg = <0x50>;
+						pagesize = <64>;
+					};
+					rtc@68 {
+						compatible = "dallas,ds3231";
+						reg = <0x68>;
+						// interrupts = <GPIOF0>
+					};
+					lm75@4a {
+						compatible = "national,lm75";
+						reg = <0x4a>;
+					};
+				};
+				i2c3: i2c-bus@100 {
+					occ@50 {
+						compatible = "ibm,occ-i2c";
+						reg = <0x50>;
+					};
+					occ@51 {
+						compatible = "ibm,occ-i2c";
+						reg = <0x51>;
+					};
+				};
+				i2c4: i2c-bus@140 {
+					adm1278@10 {
+						// P12V_a for CPU0
+						compatible = "adi,adm1278";
+						reg = <0x10>;
+						sense-resistor = <500>;
+					};
+					eeprom@54 {
+						compatible = "atmel,24c256";
+						reg = <0x54>;
+						pagesize = <64>;
+					};
+				};
+				i2c5: i2c-bus@180 {
+					adm1278@10 {
+						// P12V_b for CPU1
+						compatible = "adi,adm1278";
+						reg = <0x10>;
+						sense-resistor = <500>;
+					};
+				};
+				i2c6: i2c-bus@1c0 {
+					nct7904@2d {
+						compatible = "nuvoton,nct7904";
+						reg = <0x2d>;
+					};
+					nct7904@2e {
+						compatible = "nuvoton,nct7904";
+						reg = <0x2e>;
+					};
+					eeprom@51 {
+						compatible = "atmel,24c02";
+						reg = <0x51>;
+						pagesize = <8>;
+					};
+					eeprom@55 {
+						compatible = "atmel,24c02";
+						reg = <0x55>;
+						pagesize = <8>;
+					};
+					adm1278@10 {
+						// P12V_c for HDD and IO board
+						compatible = "adi,adm1278";
+						reg = <0x10>;
+						sense-resistor = <500>;
+					};
+				};
+			};
+		};
+	};
+
+
+	leds {
+		compatible = "gpio-leds";
+
+		heartbeat {
+			gpios = <&gpio 140 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+		identify {
+			gpios = <&gpio 58 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+		};
+		beep {
+			gpios = <&gpio 111 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+	};
+};
+

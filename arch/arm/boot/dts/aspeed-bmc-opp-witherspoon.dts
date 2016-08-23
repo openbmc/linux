@@ -1,0 +1,168 @@
+/dts-v1/;
+
+#include "aspeed-g5.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Witherspoon BMC";
+	compatible = "ibm,witherspoon", "aspeed,ast2500";
+
+	aliases {
+		serial4 = &uart5;
+	};
+
+	chosen {
+		stdout-path = &uart5;
+		bootargs = "console=ttyS4,115200 earlyprintk";
+	};
+
+	memory {
+		reg = <0x80000000 0x40000000>;
+	};
+
+	ahb {
+		bmc_pnor: fmc@1e620000 {
+			reg = < 0x1e620000 0x94
+				0x20000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,ast2500-fmc";
+			flash@0 {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+#include "aspeed-bmc-opp-flash-layout.dtsi"
+			};
+		};
+	};
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&mac0 {
+	status = "okay";
+
+	use-ncsi;
+	no-hw-checksum;
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "okay";
+
+	/* MUX ->
+	 *    Samtec 1
+	 *    Samtec 2
+	 */
+
+};
+
+&i2c3 {
+	status = "okay";
+
+	/* CLK Buffer 9DBV0841 */
+	/* CLK Buffer 9FGS9091 */
+	/* APSS */
+
+	/* 9516 (repeater) ->
+	 *    Power Supply 0
+	 *    Power Supply 1
+	 *    Fir Card ->
+	 *      MAX31785 Fan Cntl
+	 *      BMP180 thermal sense
+	 *    Regs 3.3VS, 1.1VCS, 5VCS, 1.8V
+	 */
+
+};
+
+&i2c4 {
+	status = "okay";
+
+	/* CP1 TMP423A */
+	/* CP1 VDN & VDDR */
+	/* CP1 VDD & VCS */
+	/* CP1 VIO */
+};
+
+
+&i2c5 {
+	status = "okay";
+
+	/* CP1 TMP423A */
+	/* CP1 VDN & VDDR */
+	/* CP1 VDD & VCS */
+	/* CP1 VIO */
+};
+
+&i2c6 {
+	status = "disabled";
+};
+
+&i2c7 {
+	status = "disabled";
+};
+
+&i2c8 {
+	status = "disabled";
+};
+
+
+&i2c9 {
+	status = "okay";
+
+	/* Tmp275 */
+
+	/* MUX
+	 *    -> PCIe Slot 3
+	 *    -> PCIe Slot 4
+	 *    -> PCA9517 -> PEX8725
+	 */
+};
+
+&i2c10 {
+	status = "okay";
+
+	/* MUX
+	 *    -> PCIe Slot 3
+	 *    -> PCIe Slot 4
+	 */
+};
+
+&i2c11 {
+	status = "okay";
+
+	/* TPM */
+	/* 9552 */
+	/* UCD Pmbus */
+	/* RTC */
+	/* EEPROM */
+
+	eeprom@51 {
+		compatible = "atmel,24c64";
+		reg = <0x51>;
+	};
+};
+
+&i2c12 {
+	status = "okay";
+
+	/* CP0 VPP */
+};
+
+&i2c13 {
+	status = "okay";
+
+	/* CP1 VPP */
+};
+
+&vuart {
+	status = "okay";
+};
