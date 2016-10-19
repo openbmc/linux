@@ -264,6 +264,12 @@
 				interrupts = <19>;
 				clocks = <&clk_apb>;
 				status = "okay";
+
+			        pinctrl_mdio2_default: mdio2_default {
+                                function = "MDIO2";
+                                groups = "MDIO2";
+                                };
+
 			};
 
 			wdt: wdt@1e785000 {

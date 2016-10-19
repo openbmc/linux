@@ -128,7 +128,6 @@ static void __init do_common_setup(void)
 static void __init do_barreleye_setup(void)
 {
 	u32 reg;
-
 	do_common_setup();
 
 	/* Setup PNOR address mapping for 64M flash */
@@ -141,7 +140,7 @@ static void __init do_barreleye_setup(void)
 
 	/* SCU setup */
 	writel(0x01C00000, AST_IO(AST_BASE_SCU | 0x88));
-
+	writel(0x003FA00C, AST_IO(AST_BASE_SCU | 0x90));
 	/* To enable GPIOE0 pass through function debounce mode */
 	writel(0x010FFFFF, AST_IO(AST_BASE_SCU | 0xA8));
 
@@ -163,7 +162,44 @@ static void __init do_barreleye_setup(void)
 	 * corresponds to 20 ms. This time was found by experimentation */
 	writel(0x000EA600, AST_IO(AST_BASE_GPIO | 0x58));
 }
+static void __init do_sthelens_setup(void)
+{
+        u32 reg;
+	printk("@@@@Ken debug:sthelens init@@@@\n");
+        do_common_setup();
 
+        /* Setup PNOR address mapping for 64M flash */
+        writel(0x30000C00, AST_IO(AST_BASE_LPC | 0x88));
+        writel(0xFC0003FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+        /* GPIO setup */
+        writel(0x9E82FCE7, AST_IO(AST_BASE_GPIO | 0x00));
+        writel(0x0370E677, AST_IO(AST_BASE_GPIO | 0x04));
+
+        /* SCU setup */
+        writel(0x01C00000, AST_IO(AST_BASE_SCU | 0x88));
+        writel(0x003FA00C, AST_IO(AST_BASE_SCU | 0x90));//For MIDO2/MDC2
+        /* To enable GPIOE0 pass through function debounce mode */
+        writel(0x010FFFFF, AST_IO(AST_BASE_SCU | 0xA8));
+
+        /*
+         * Do read/modify/write on power gpio to prevent resetting power on
+         * reboot
+         */
+        reg = readl(AST_IO(AST_BASE_GPIO | 0x20));
+        reg |= 0xCFC8F7FD;
+        writel(reg, AST_IO(AST_BASE_GPIO | 0x20));
+        writel(0xC738F20A, AST_IO(AST_BASE_GPIO | 0x24));
+        writel(0x0031FFAF, AST_IO(AST_BASE_GPIO | 0x80));
+
+        /* Select TIMER3 as debounce timer */
+        writel(0x00000001, AST_IO(AST_BASE_GPIO | 0x48));
+        writel(0x00000001, AST_IO(AST_BASE_GPIO | 0x4C));
+
+        /* Set debounce timer to 480000 cycles, with a pclk of 48MHz,
+         * corresponds to 20 ms. This time was found by experimentation */
+        writel(0x000EA600, AST_IO(AST_BASE_GPIO | 0x58));
+}
 static void __init do_palmetto_setup(void)
 {
 	do_common_setup();
@@ -232,6 +268,8 @@ static void __init aspeed_init_early(void)
 		do_palmetto_setup();
 	if (of_machine_is_compatible("ibm,garrison-bmc"))
 		do_garrison_setup();
+	if (of_machine_is_compatible("ms,sthelens-bmc"))
+                do_sthelens_setup();
 
 }
 
