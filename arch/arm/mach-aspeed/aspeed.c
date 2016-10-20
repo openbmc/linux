@@ -177,7 +177,7 @@ static void __init do_sthelens_setup(void)
         writel(0x0370E677, AST_IO(AST_BASE_GPIO | 0x04));
 
         /* SCU setup */
-        writel(0x01C00000, AST_IO(AST_BASE_SCU | 0x88));
+        writel(0x01C0007E, AST_IO(AST_BASE_SCU | 0x88));
         writel(0x003FA00C, AST_IO(AST_BASE_SCU | 0x90));//For MIDO2/MDC2
         /* To enable GPIOE0 pass through function debounce mode */
         writel(0x010FFFFF, AST_IO(AST_BASE_SCU | 0xA8));
