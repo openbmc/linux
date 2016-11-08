@@ -176,7 +176,8 @@ static void __init do_sthelens_setup(void)
         writel(0x0370E677, AST_IO(AST_BASE_GPIO | 0x04));
 
         /* SCU setup */
-        writel(0x01C0007E, AST_IO(AST_BASE_SCU | 0x88));
+        //writel(0x01C0007E, AST_IO(AST_BASE_SCU | 0x88));
+        writel(0x01C00000, AST_IO(AST_BASE_SCU | 0x88));//GPION1 - GPION6 should config to GPIO pin
         writel(0x003FA00C, AST_IO(AST_BASE_SCU | 0x90));//For MIDO2/MDC2
         /* To enable GPIOE0 pass through function debounce mode */
         writel(0x010FFFFF, AST_IO(AST_BASE_SCU | 0xA8));
@@ -247,7 +248,8 @@ static void __init aspeed_init_early(void)
 	// XXX UART stuff to fix to pinmux & co
 	writel(0x02010023, AST_IO(AST_BASE_LPC | 0x9c));
 	writel(SCU_PASSWORD, AST_IO(AST_BASE_SCU)); // UNLOCK SCU
-	writel(0xcb000000, AST_IO(AST_BASE_SCU | 0x80));
+	//writel(0xcb000000, AST_IO(AST_BASE_SCU | 0x80));
+	writel(0x20000000, AST_IO(AST_BASE_SCU | 0x80)); //config GPIOF0, GPIOF1, GPIOF3, GPIOF7 to gpio pin
 	writel(0x00fff0c0, AST_IO(AST_BASE_SCU | 0x84));
 	writel(0x10CC5E80, AST_IO(AST_BASE_SCU | 0x0c));
 
