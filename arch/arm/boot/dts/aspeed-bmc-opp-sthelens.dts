@@ -75,6 +75,71 @@
 						reg = <0x4a>;
 					};
 				};
+			i2c2: i2c-bus@c0 {
+        			status = "okay";
+        			pca9548@77 {
+                				compatible = "nxp,pca9548";
+                				reg = <0x77>;
+                				#address-cells = <1>;
+                				#size-cells = <0>;
+                			i2c@0 {
+						#address-cells = <1>;
+                        			#size-cells = <0>;
+                        			reg = <0x00>;
+                        			lm75@50 {
+                                			compatible = "national,lm75";
+                                			reg = <0x50>;
+                        			};
+                                                lm75@51 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x51>;
+                                                };
+                                                lm75@52 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x52>;
+                                                };
+                                                lm75@53 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x53>;
+                                                };
+                                                lm75@54 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x54>;
+                                                };
+                                                lm75@55 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x55>;
+                                                };
+                                                lm75@56 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x56>;
+                                                };
+                                                lm75@57 {
+                                                        compatible = "national,lm75";
+                                                        reg = <0x57>;
+                                                };
+
+
+                			};
+
+                			i2c@1 {
+                        			#address-cells = <1>;
+                        			#size-cells = <0>;
+                        			reg = <0x01>;
+
+						/* PCAL9538 */
+                			};
+
+                			i2c@3 {
+                        			#address-cells = <1>;
+                        			#size-cells = <0>;
+                        			reg = <0x3>;
+
+						/* PCAL9538 x 3 */
+                			};
+        				};
+				};
+
 				i2c3: i2c-bus@100 {
 					occ@50 {
 						compatible = "ibm,occ-i2c";
