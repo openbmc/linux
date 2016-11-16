@@ -128,7 +128,7 @@
 			default-state = "keep";
 		};
 		identify {
-			gpios = <&gpio 58 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio 44 GPIO_ACTIVE_LOW>;
 			default-state = "keep";
 		};
 		beep {
