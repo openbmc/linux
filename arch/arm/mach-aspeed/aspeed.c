@@ -165,7 +165,6 @@ static void __init do_barreleye_setup(void)
 static void __init do_sthelens_setup(void)
 {
         u32 reg;
-	printk("@@@@Ken debug:sthelens init@@@@\n");
         do_common_setup();
 
         /* Setup PNOR address mapping for 64M flash */
@@ -199,6 +198,15 @@ static void __init do_sthelens_setup(void)
         /* Set debounce timer to 480000 cycles, with a pclk of 48MHz,
          * corresponds to 20 ms. This time was found by experimentation */
         writel(0x000EA600, AST_IO(AST_BASE_GPIO | 0x58));
+        /* Config GPIOC6 & C7 as output high to provent board reset*/
+        reg = readl(AST_IO(AST_BASE_GPIO | 0x0));
+        reg |= (1<<23)| (1<<22);
+        writel(reg, AST_IO(AST_BASE_GPIO | 0x0));
+
+        reg = readl(AST_IO(AST_BASE_GPIO | 0x4));
+        reg |= (1<<23)| (1<<22);
+        writel(reg, AST_IO(AST_BASE_GPIO | 0x4));
+
 }
 static void __init do_palmetto_setup(void)
 {
