@@ -1,0 +1,99 @@
+/dts-v1/;
+
+#include "ast2400.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Daan BMC";
+	compatible = "tyan,daan-bmc", "aspeed,ast2400";
+
+	ahb {
+		mac0: ethernet@1e660000 {
+			use-nc-si;
+			no-hw-checksum;
+		};
+
+		fmc@1e620000 {
+			reg = < 0x1e620000 0x94
+				0x20000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,fmc";
+			flash@0 {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+				/*
+				 * Possibly required props:
+				 * spi-max-frequency = <>
+				 * spi-tx-bus-width = <>
+				 * spi-rx-bus-width  = <>
+				 * m25p,fast-read
+				 * spi-cpol if inverse clock polarity (CPOL)
+				 * spi-cpha if shifted clock phase (CPHA)
+				 */
+#include "aspeed-bmc-opp-flash-layout.dtsi"
+			};
+		};
+		spi@1e630000 {
+			reg = < 0x1e630000 0x18
+				0x30000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,smc";
+			flash {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+				label = "pnor";
+				/* spi-max-frequency = <>; */
+				/* m25p,fast-read; */
+			};
+		};
+		apb {
+			i2c: i2c@1e78a040 {
+				i2c0: i2c-bus@40 {
+					eeprom@50 {
+						compatible = "atmel,24c256";
+						reg = <0x50>;
+						pagesize = <64>;
+					};
+					rtc@68 {
+						compatible = "dallas,ds3231";
+						reg = <0x68>;
+						// interrupts = <GPIOF0>
+					};
+				};
+
+				i2c2: i2c-bus@c0 {
+					tmp423@4c {
+						compatible = "ti,tmp423";
+						reg = <0x4c>;
+					};
+				};
+
+				i2c3: i2c-bus@100 {
+					occ@50 {
+						compatible = "ibm,occ-i2c";
+						reg = <0x50>;
+					};
+				};
+			};
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		heartbeat {
+			gpios = <&gpio 140 GPIO_ACTIVE_LOW>;
+		};
+
+		power {
+			gpios = <&gpio 141 GPIO_ACTIVE_LOW>;
+		};
+
+		identify {
+			gpios = <&gpio 2 GPIO_ACTIVE_LOW>;
+		};
+
+	};
+};
