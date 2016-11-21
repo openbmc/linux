@@ -13,9 +13,30 @@
 // To be replaced by proper clock, pinmux and syscon drivers operating
 // from DT parameters
 
+
+typedef void (init_fnc_t) (void);
+extern void __init ast_add_device_pwm_fan(void);
+
+init_fnc_t __initdata *init_all_device[] = {
+	ast_add_device_pwm_fan,
+	NULL,
+};
+
+static void __init ast_add_all_devices(void)
+{
+	init_fnc_t **init_fnc_ptr;
+
+	for (init_fnc_ptr = init_all_device; *init_fnc_ptr; ++init_fnc_ptr) {
+		(*init_fnc_ptr)();
+	}
+
+	return;
+}
+
 static void __init aspeed_dt_init(void)
 {
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	ast_add_all_devices();
 }
 
 static const struct of_device_id aspeed_clk_match[] __initconst = {

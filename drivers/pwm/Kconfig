@@ -433,4 +433,12 @@ config PWM_VT8500
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-vt8500.
 
+config PWM_AST_ASPEED
+	tristate "ASPEED PWM support"
+	help
+	  Generic PWM framework driver for aspeed.
+
+	  To compile this driver as a module, choose Y here: the module
+	  will be called aspeed.
+
 endif
