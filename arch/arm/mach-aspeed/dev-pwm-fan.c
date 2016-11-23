@@ -45,7 +45,8 @@ struct ast_pwm_driver_data { //from mach/ast_pwm_techo.h
  *  PWM-FAN
  * -------------------------------------------------------------------- */
 
-#if defined(CONFIG_PWM_AST_ASPEED)
+//#if defined(CONFIG_PWM_AST_ASPEED)
+#if defined(CONFIG_ARCH_ASPEED)
 
 static struct resource ast_pwm_fan_resources[] = {
 	[0] = {
