@@ -1,0 +1,217 @@
+/dts-v1/;
+
+#include "aspeed-g4.dtsi"
+
+#include <dt-bindings/gpio/aspeed-gpio.h>
+
+/ {
+	model = "S188 BMC";
+	compatible = "ibm,firestone-bmc", "aspeed,ast2400";
+
+	aliases {
+		serial0 = &vuart;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial4 = &uart5;
+	};
+
+	chosen {
+		stdout-path = &uart5;
+		bootargs = "console=ttyS4,115200";
+	};
+
+	memory {
+		reg = < 0x40000000 0x10000000 >;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		heartbeat {
+			gpios = <&gpio ASPEED_GPIO(R, 4) GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+	};
+
+	ahb {
+		fmc@1e620000 {
+			reg = < 0x1e620000 0x94
+				0x20000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,ast2400-fmc";
+
+			flash@0 {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+#include "aspeed-bmc-opp-flash-layout.dtsi"
+			};
+		};
+
+		spi@1e630000 {
+			reg = < 0x1e630000 0x18
+				0x30000000 0x02000000 >;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "aspeed,ast2400-smc";
+			flash@0 {
+				reg = < 0 >;
+				compatible = "jedec,spi-nor" ;
+				label = "pnor";
+			};
+		};
+	};
+};
+
+&mac0 {
+	status = "okay";
+    use-ncsi;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rmii1_default>;
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&i2c0 {
+	// grounded
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "okay";
+	tmp75@92 {
+		compatible = "ti,tmp75";
+		reg = <0x80000098>;
+	};
+};
+
+&i2c2 {
+	// i2c mux
+};
+
+&i2c3 {
+	status = "okay";
+
+	// i2c hub PCA9516A
+	// spruce / madrone PDB
+	// APSS
+	// FIR (fan / SATA backplane)
+	fanctl@52 {
+		compatible = "max,max31785";
+		reg = <0x52>;
+	};
+};
+
+&i2c4 {
+	status = "okay";
+
+	// turismo
+	occ@50 {
+		compatible = "ibm,occ-i2c";
+		reg = <0x50>;
+	};
+};
+
+&i2c5 {
+	status = "okay";
+
+	// turismo
+	occ@50 {
+		compatible = "ibm,occ-i2c";
+		reg = <0x50>;
+	};
+};
+
+&i2c6 {
+	status = "okay";
+	
+    occ@50 {
+		compatible = "ibm,occ-i2c";
+		reg = <0x50>;
+	};
+};
+
+&i2c7 {
+	status = "okay";
+	
+	occ@50 {
+		compatible = "ibm,occ-i2c";
+		reg = <0x50>;
+	};
+};
+
+&i2c8 {
+	status = "okay";
+};
+
+&i2c9 {
+	status = "okay";
+};
+
+&i2c10 {
+	status = "okay";
+};
+
+&i2c11 {
+	status = "okay";
+
+	leds@c0 {
+		compatible = "pca,pca9552led";
+		reg = <0x800000c0>;
+		// led9 - led_fault_n
+		// led10 - pwr_led_n
+		// led11 - rear_id_led_n
+	};
+
+	rtc@d0 {
+		compatible = "dallas,ds3231";
+		reg = <0x800000d0>;
+	};
+
+	si5338a@e2 {
+		// SiLabs clock generator
+		reg =<0x800000e2>;
+	};
+
+	idt@d6 {
+		// IDT 9DBV0641 clock buffer
+		reg = <0x800000d6>;
+	};
+
+	tpm@a3 {
+		reg = <0x800000a3>;
+	};
+};
+
+&i2c12 {
+	// i2c hub PCA9516A
+	status = "okay";
+};
+
+&i2c13 {
+	// i2c hub PCA9516A
+	status = "okay";
+};
+
+&gpio {
+	cp0_fsi0_data_en {
+		gpio-hog;
+		gpios = <ASPEED_GPIO(H, 6) GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "cp0_fsi0_data_en";
+	};
+};
+
+&vuart {
+	status = "okay";
+};
