@@ -209,6 +209,11 @@
 &i2c12 {
 	// i2c hub PCA9516A
 	status = "okay";
+
+	hwmon@2f {
+		compatible = "winbond,w83793";
+		reg = <0x2f>;
+	};
 };
 
 &i2c13 {
