@@ -207,6 +207,18 @@ static void __init do_witherspoon_setup(void)
 	writel(0x68600000, AST_IO(AST_BASE_SPI | 0x30));
 }
 
+static void __init do_s188_setup(void)
+{
+        do_common_setup();
+
+        /* Setup PNOR address mapping for 64M flash */
+        writel(0x30000C00, AST_IO(AST_BASE_LPC | 0x88));
+        writel(0xFC0003FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+        /* Override serial destination to use the dedicated serial port */
+        writel(0x00004000, AST_IO(AST_BASE_LPC | 0x174));
+}
+
 #define SCU_PASSWORD	0x1688A8A8
 
 static void __init aspeed_init_early(void)
@@ -242,6 +254,8 @@ static void __init aspeed_init_early(void)
 		do_zaius_setup();
 	if (of_machine_is_compatible("ibm,witherspoon-bmc"))
 		do_witherspoon_setup();
+        if (of_machine_is_compatible("msi,s188-bmc"))
+                do_s188_setup();
 }
 
 static void __init aspeed_map_io(void)
