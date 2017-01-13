@@ -136,8 +136,6 @@ static void __init do_zaius_setup(void)
 {
 	unsigned long reg;
 	unsigned long board_rev;
-	/* D3 in GPIOA/B/C/D direction and data registers */
-	unsigned long phy_reset_mask = BIT(27);
 
 	do_common_setup();
 
@@ -147,26 +145,25 @@ static void __init do_zaius_setup(void)
 
 	/* EVT1 hacks */
 	if (board_rev == 0) {
+		/* D3 in GPIOA/B/C/D direction and data registers */
+		unsigned long phy_reset_mask = BIT(27);
+
 		/* Disable GPIO I, G/AB pulldowns due to weak driving buffers */
 		reg = readl(AST_IO(AST_BASE_SCU | 0x8C));
 		writel(reg | BIT(24) | BIT(22), AST_IO(AST_BASE_SCU | 0x8C));
+
+		/* Assert MAC2 PHY hardware reset */
+		/* Set pin low */
+		reg = readl(AST_IO(AST_BASE_GPIO | 0x00));
+		writel(reg & ~phy_reset_mask, AST_IO(AST_BASE_GPIO | 0x00));
+		/* Enable pin for output */
+		reg = readl(AST_IO(AST_BASE_GPIO | 0x04));
+		writel(reg | phy_reset_mask, AST_IO(AST_BASE_GPIO | 0x04));
+		udelay(3);
+		/* Set pin high */
+		reg = readl(AST_IO(AST_BASE_GPIO | 0x00));
+		writel(reg | phy_reset_mask, AST_IO(AST_BASE_GPIO | 0x00));
 	}
-
-	/* Disable GPIO H/AC pulldowns to float 1-wire interface pins */
-	reg = readl(AST_IO(AST_BASE_SCU | 0x8C));
-	writel(reg | BIT(23), AST_IO(AST_BASE_SCU | 0x8C));
-
-	/* Assert MAC2 PHY hardware reset */
-	/* Set pin low */
-	reg = readl(AST_IO(AST_BASE_GPIO | 0x00));
-	writel(reg & ~phy_reset_mask, AST_IO(AST_BASE_GPIO | 0x00));
-	/* Enable pin for output */
-	reg = readl(AST_IO(AST_BASE_GPIO | 0x04));
-	writel(reg | phy_reset_mask, AST_IO(AST_BASE_GPIO | 0x04));
-	udelay(3);
-	/* Set pin high */
-	reg = readl(AST_IO(AST_BASE_GPIO | 0x00));
-	writel(reg | phy_reset_mask, AST_IO(AST_BASE_GPIO | 0x00));
 
 	/* Setup PNOR address mapping for 64M flash
 	 *
@@ -210,6 +207,18 @@ static void __init do_witherspoon_setup(void)
 	writel(0x68600000, AST_IO(AST_BASE_SPI | 0x30));
 }
 
+static void __init do_s188_setup(void)
+{
+        do_common_setup();
+
+        /* Setup PNOR address mapping for 64M flash */
+        writel(0x30000C00, AST_IO(AST_BASE_LPC | 0x88));
+        writel(0xFC0003FF, AST_IO(AST_BASE_LPC | 0x8C));
+
+        /* Override serial destination to use the dedicated serial port */
+        writel(0x00004000, AST_IO(AST_BASE_LPC | 0x174));
+}
+
 #define SCU_PASSWORD	0x1688A8A8
 
 static void __init aspeed_init_early(void)
@@ -245,6 +254,8 @@ static void __init aspeed_init_early(void)
 		do_zaius_setup();
 	if (of_machine_is_compatible("ibm,witherspoon-bmc"))
 		do_witherspoon_setup();
+        if (of_machine_is_compatible("msi,s188-bmc"))
+                do_s188_setup();
 }
 
 static void __init aspeed_map_io(void)
