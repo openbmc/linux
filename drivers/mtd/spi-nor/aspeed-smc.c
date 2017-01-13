@@ -349,7 +349,7 @@ static int aspeed_smc_dma_wait(struct aspeed_smc_chip *chip)
 }
 
 #define DMA_LENGTH(x) (((x) - 4) & ~0xFE000003)
-#define DMA_ADDR(x) ((x) & ~0xE0000003)
+#define DMA_ADDR(x) ((x) & ~0x00000003)
 
 static inline void aspeed_smc_chip_configure(struct aspeed_smc_chip *chip,
 					     u32 ctl)
@@ -540,6 +540,9 @@ static int aspeed_smc_read_user(struct spi_nor *nor, loff_t from, size_t len,
 {
 	struct aspeed_smc_chip *chip = nor->priv;
 	int ret;
+	u32 ctl;
+	int i;
+	u8 dummy = 0xFF;
 
 	mutex_lock(&chip->controller->mutex);
 
@@ -557,6 +560,18 @@ static int aspeed_smc_read_user(struct spi_nor *nor, loff_t from, size_t len,
 
 	aspeed_smc_start_user(nor);
 	aspeed_smc_send_cmd_addr(nor, nor->read_opcode, from);
+
+	/* Send dummy bytes */
+	for (i = 0; i < chip->nor.read_dummy / 8; ++i)
+		aspeed_smc_write_to_ahb(chip->base, &dummy, 1);
+
+	if (chip->nor.flash_read == SPI_NOR_DUAL) {
+		/* Switch to dual I/O mode for data cycle */
+		ctl = readl(chip->ctl) & ~CONTROL_SPI_IO_MODE_MASK;
+		ctl |= CONTROL_SPI_IO_DUAL_DATA;
+		writel(ctl, chip->ctl);
+	}
+
 	aspeed_smc_read_from_ahb(read_buf, chip->base, len);
 	aspeed_smc_stop_user(nor);
 
@@ -870,16 +885,21 @@ static int aspeed_smc_chip_setup_finish(struct aspeed_smc_chip *chip)
 	case SPI_NOR_FAST:
 		cmd = CONTROL_SPI_COMMAND_MODE_FREAD;
 		break;
+	case SPI_NOR_DUAL:
+		cmd = CONTROL_SPI_COMMAND_MODE_FREAD |
+			CONTROL_SPI_IO_DUAL_DATA;
+		break;
 	default:
 		dev_err(chip->nor.dev, "unsupported SPI read mode\n");
 		return -EINVAL;
 	}
 
 	chip->ctl_val[smc_read] |= cmd |
+		spi_control_fill_opcode(chip->nor.read_opcode) |
 		CONTROL_SPI_IO_DUMMY_CYCLES_SET(chip->nor.read_dummy / 8);
 
-	dev_dbg(controller->dev, "base control register: %08x\n",
-		 chip->ctl_val[smc_read]);
+	dev_dbg(controller->dev, "read control register: %08x\n",
+		chip->ctl_val[smc_read]);
 	return 0;
 }
 
@@ -980,11 +1000,7 @@ static int aspeed_smc_probe(struct platform_device *pdev)
 		if (err)
 			continue;
 
-		/*
-		 * XXX Add support for SPI_NOR_QUAD and SPI_NOR_DUAL attach
-		 * when board support is present as determined by of property.
-		 */
-		err = spi_nor_scan(&chip->nor, NULL, SPI_NOR_NORMAL);
+		err = spi_nor_scan(&chip->nor, NULL, SPI_NOR_DUAL);
 		if (err)
 			continue;
 

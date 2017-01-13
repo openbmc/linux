@@ -39,7 +39,8 @@
 #define ASPEED_GPIO_PORT_Y 24
 #define ASPEED_GPIO_PORT_Z 25
 #define ASPEED_GPIO_PORT_AA 26
-#define ASPEED_GPIO_PORT_BB 27
+#define ASPEED_GPIO_PORT_AB 27
+#define ASPEED_GPIO_PORT_AC 28
 
 #define ASPEED_GPIO(port, offset) \
 	((ASPEED_GPIO_PORT_##port * 8) + offset)
