@@ -31,6 +31,15 @@
 		};
 	};
 
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		checkstop {
+			label = "checkstop";
+			gpios = <&gpio ASPEED_GPIO(J, 2) GPIO_ACTIVE_LOW>;
+			linux,code = <ASPEED_GPIO(J, 2)>;
+		};
+
 	fsi-master {
 		compatible = "ibm,fsi-master", "ibm,fsi-master-gpio";
 
@@ -183,9 +192,14 @@
 
 &i2c12 {
 	status = "okay";
+	
+	/* Fan Controller 0xa4/a5 */
+	max31785@52 {
+		compatible = "maxim,max31785";
+		reg = <0x52>;
+	};
 
 	/* CPLD */
-	/* Fan Controller 0xa4/a5 */
 	/* Power Supply */
 	/* Temp Sensor */
 	/* Temp Sensor */
