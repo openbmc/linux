@@ -30,6 +30,8 @@
 #include <linux/netdevice.h>
 #include <linux/phy.h>
 #include <linux/platform_device.h>
+#include <linux/of_mdio.h>
+#include <linux/of_net.h>
 #include <net/ip.h>
 #include <net/ncsi.h>
 
@@ -70,9 +72,11 @@ struct ftgmac100 {
 	spinlock_t tx_lock;
 
 	struct net_device *netdev;
-	struct device *dev;
+	struct platform_device *pdev;
 	struct ncsi_dev *ndev;
 	struct napi_struct napi;
+	struct device_node *phy_node;
+	phy_interface_t phy_interface;
 
 	struct mii_bus *mii_bus;
 	int old_speed;
@@ -150,10 +154,10 @@ static void ftgmac100_setup_mac(struct ftgmac100 *priv)
 	unsigned int l;
 	void *addr;
 
-	addr = device_get_mac_address(priv->dev, mac, ETH_ALEN);
+	addr = device_get_mac_address(&priv->pdev->dev, mac, ETH_ALEN);
 	if (addr) {
 		ether_addr_copy(priv->netdev->dev_addr, mac);
-		dev_info(priv->dev, "Read MAC address %pM from device tree\n",
+		dev_info(&priv->pdev->dev, "Read MAC address %pM from device tree\n",
 			 mac);
 		return;
 	}
@@ -170,10 +174,10 @@ static void ftgmac100_setup_mac(struct ftgmac100 *priv)
 
 	if (is_valid_ether_addr(mac)) {
 		ether_addr_copy(priv->netdev->dev_addr, mac);
-		dev_info(priv->dev, "Read MAC address %pM from chip\n", mac);
+		dev_info(&priv->pdev->dev, "Read MAC address %pM from chip\n", mac);
 	} else {
 		eth_hw_addr_random(priv->netdev);
-		dev_info(priv->dev, "Generated random MAC address %pM\n",
+		dev_info(&priv->pdev->dev, "Generated random MAC address %pM\n",
 			 priv->netdev->dev_addr);
 	}
 }
@@ -520,7 +524,7 @@ static bool ftgmac100_rx_packet(struct ftgmac100 *priv, int *processed)
 		struct page *page = ftgmac100_rxdes_get_page(priv, rxdes);
 		unsigned int size;
 
-		dma_unmap_page(priv->dev, map, RX_BUF_SIZE, DMA_FROM_DEVICE);
+		dma_unmap_page(&priv->pdev->dev, map, RX_BUF_SIZE, DMA_FROM_DEVICE);
 
 		size = ftgmac100_rxdes_data_length(rxdes);
 		skb_fill_page_desc(skb, skb_shinfo(skb)->nr_frags, page, 0, size);
@@ -703,7 +707,7 @@ static bool ftgmac100_tx_complete_packet(struct ftgmac100 *priv)
 	netdev->stats.tx_packets++;
 	netdev->stats.tx_bytes += skb->len;
 
-	dma_unmap_single(priv->dev, map, skb_headlen(skb), DMA_TO_DEVICE);
+	dma_unmap_single(&priv->pdev->dev, map, skb_headlen(skb), DMA_TO_DEVICE);
 
 	dev_kfree_skb(skb);
 
@@ -788,8 +792,8 @@ static int ftgmac100_alloc_rx_page(struct ftgmac100 *priv,
 		return -ENOMEM;
 	}
 
-	map = dma_map_page(priv->dev, page, 0, RX_BUF_SIZE, DMA_FROM_DEVICE);
-	if (unlikely(dma_mapping_error(priv->dev, map))) {
+	map = dma_map_page(&priv->pdev->dev, page, 0, RX_BUF_SIZE, DMA_FROM_DEVICE);
+	if (unlikely(dma_mapping_error(&priv->pdev->dev, map))) {
 		if (net_ratelimit())
 			netdev_err(netdev, "failed to map rx page\n");
 		__free_page(page);
@@ -814,7 +818,7 @@ static void ftgmac100_free_buffers(struct ftgmac100 *priv)
 		if (!page)
 			continue;
 
-		dma_unmap_page(priv->dev, map, RX_BUF_SIZE, DMA_FROM_DEVICE);
+		dma_unmap_page(&priv->pdev->dev, map, RX_BUF_SIZE, DMA_FROM_DEVICE);
 		__free_page(page);
 	}
 
@@ -826,11 +830,11 @@ static void ftgmac100_free_buffers(struct ftgmac100 *priv)
 		if (!skb)
 			continue;
 
-		dma_unmap_single(priv->dev, map, skb_headlen(skb), DMA_TO_DEVICE);
+		dma_unmap_single(&priv->pdev->dev, map, skb_headlen(skb), DMA_TO_DEVICE);
 		kfree_skb(skb);
 	}
 
-	dma_free_coherent(priv->dev, sizeof(struct ftgmac100_descs),
+	dma_free_coherent(&priv->pdev->dev, sizeof(struct ftgmac100_descs),
 			  priv->descs, priv->descs_dma_addr);
 }
 
@@ -838,7 +842,7 @@ static int ftgmac100_alloc_buffers(struct ftgmac100 *priv)
 {
 	int i;
 
-	priv->descs = dma_zalloc_coherent(priv->dev,
+	priv->descs = dma_zalloc_coherent(&priv->pdev->dev,
 					  sizeof(struct ftgmac100_descs),
 					  &priv->descs_dma_addr, GFP_KERNEL);
 	if (!priv->descs)
@@ -902,13 +906,20 @@ static int ftgmac100_mii_probe(struct ftgmac100 *priv)
 
 	phydev = phy_find_first(priv->mii_bus);
 	if (!phydev) {
-		netdev_info(netdev, "%s: no PHY found\n", netdev->name);
+		netdev_err(netdev, "%s: no PHY found\n", netdev->name);
 		return -ENODEV;
 	}
 
-	phydev = phy_connect(netdev, phydev_name(phydev),
-			     &ftgmac100_adjust_link, PHY_INTERFACE_MODE_GMII);
-
+	/* attach the mac to the phy */
+	if (priv->phy_node) {
+		phydev = of_phy_connect(netdev, priv->phy_node,
+				 &ftgmac100_adjust_link, 0,
+				 priv->phy_interface);
+	} else {
+		phydev = phy_connect(netdev, phydev_name(phydev),
+				 &ftgmac100_adjust_link,
+				 PHY_INTERFACE_MODE_GMII);
+	}
 	if (IS_ERR(phydev)) {
 		netdev_err(netdev, "%s: Could not attach to PHY\n", netdev->name);
 		return PTR_ERR(phydev);
@@ -951,7 +962,7 @@ static int ftgmac100_mdiobus_read(struct mii_bus *bus, int phy_addr, int regnum)
 		udelay(100);
 	}
 
-	netdev_err(netdev, "mdio read timed out\n");
+	netdev_err(netdev, "mdio read timed out %02x %02x\n", phy_addr, regnum);
 	return -EIO;
 }
 
@@ -1214,8 +1225,8 @@ static int ftgmac100_hard_start_xmit(struct sk_buff *skb,
 		return NETDEV_TX_OK;
 	}
 
-	map = dma_map_single(priv->dev, skb->data, skb_headlen(skb), DMA_TO_DEVICE);
-	if (unlikely(dma_mapping_error(priv->dev, map))) {
+	map = dma_map_single(&priv->pdev->dev, skb->data, skb_headlen(skb), DMA_TO_DEVICE);
+	if (unlikely(dma_mapping_error(&priv->pdev->dev, map))) {
 		/* drop packet */
 		if (net_ratelimit())
 			netdev_err(netdev, "map socket buffer failed\n");
@@ -1249,7 +1260,8 @@ static const struct net_device_ops ftgmac100_netdev_ops = {
 static int ftgmac100_setup_mdio(struct net_device *netdev)
 {
 	struct ftgmac100 *priv = netdev_priv(netdev);
-	struct platform_device *pdev = to_platform_device(priv->dev);
+	struct platform_device *pdev = to_platform_device(&priv->pdev->dev);
+	struct device_node *np;
 	int i, err = 0;
 	u32 reg;
 
@@ -1273,18 +1285,38 @@ static int ftgmac100_setup_mdio(struct net_device *netdev)
 	priv->mii_bus->read = ftgmac100_mdiobus_read;
 	priv->mii_bus->write = ftgmac100_mdiobus_write;
 
-	for (i = 0; i < PHY_MAX_ADDR; i++)
-		priv->mii_bus->irq[i] = PHY_POLL;
+	np = priv->pdev->dev.of_node;
+	if (np) {
+		/* try dt phy registration */
+		err = of_mdiobus_register(priv->mii_bus, np);
 
-	err = mdiobus_register(priv->mii_bus);
+		/* fallback to standard phy registration if no phy were
+		   found during dt phy registration */
+		if (!err && !phy_find_first(priv->mii_bus)) {
+			for (i = 0; i < PHY_MAX_ADDR; i++) {
+				struct phy_device *phydev;
+
+				phydev = mdiobus_scan(priv->mii_bus, i);
+				if (IS_ERR(phydev)) {
+					err = PTR_ERR(phydev);
+					break;
+				}
+			}
+		}
+	} else {
+		for (i = 0; i < PHY_MAX_ADDR; i++)
+			priv->mii_bus->irq[i] = PHY_POLL;
+
+		err = mdiobus_register(priv->mii_bus);
+	}
 	if (err) {
-		dev_err(priv->dev, "Cannot register MDIO bus!\n");
+		dev_err(&priv->pdev->dev, "Cannot register MDIO bus!\n");
 		goto err_register_mdiobus;
 	}
 
 	err = ftgmac100_mii_probe(priv);
 	if (err) {
-		dev_err(priv->dev, "MII Probe failed!\n");
+		dev_err(&priv->pdev->dev, "MII Probe failed!\n");
 		goto err_mii_probe;
 	}
 
@@ -1357,7 +1389,7 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	/* setup private data */
 	priv = netdev_priv(netdev);
 	priv->netdev = netdev;
-	priv->dev = &pdev->dev;
+	priv->pdev = pdev;
 
 	if (of_machine_is_compatible("aspeed,ast2400") ||
 	    of_machine_is_compatible("aspeed,ast2500")) {
@@ -1372,6 +1404,14 @@ static int ftgmac100_probe(struct platform_device *pdev)
 
 	/* initialize NAPI */
 	netif_napi_add(netdev, &priv->napi, ftgmac100_poll, 64);
+
+	priv->phy_node = of_parse_phandle(pdev->dev.of_node, "phy-handle", 0);
+
+	priv->phy_interface = of_get_phy_mode(pdev->dev.of_node);
+	/* fallback to defaults */
+	if (priv->phy_interface < 0 || !priv->phy_node) {
+		priv->phy_interface = PHY_INTERFACE_MODE_GMII;
+	}
 
 	/* map io memory */
 	priv->res = request_mem_region(res->start, resource_size(res),
