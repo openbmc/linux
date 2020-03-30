@@ -1065,7 +1065,8 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	aspeed-bmc-opp-witherspoon.dtb \
 	aspeed-bmc-opp-zaius.dtb \
 	aspeed-bmc-quanta-q71l.dtb \
-	aspeed-bmc-portwell-neptune.dtb
+	aspeed-bmc-portwell-neptune.dtb \
+	aspeed-bmc-opp-tomahawk.dtb
 endif
 
 dtstree		:= $(srctree)/$(src)
