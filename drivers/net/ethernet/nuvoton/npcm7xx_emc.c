@@ -1801,7 +1801,8 @@ static int npcm7xx_mii_setup(struct net_device *dev)
 	writel(readl((ether->reg + REG_MCMDR)) | MCMDR_ENMDC,
 	       (ether->reg + REG_MCMDR));
 
-	if (mdiobus_register(ether->mii_bus)) {
+	err = mdiobus_register(ether->mii_bus);
+	if (err) {
 		dev_err(&pdev->dev, "mdiobus_register() failed\n");
 		goto out2;
 	}
@@ -1809,6 +1810,7 @@ static int npcm7xx_mii_setup(struct net_device *dev)
 	phydev = phy_find_first(ether->mii_bus);
 	if (!phydev) {
 		dev_err(&pdev->dev, "phy_find_first() failed\n");
+		err = -ENODEV;
 		goto out3;
 	}
 
