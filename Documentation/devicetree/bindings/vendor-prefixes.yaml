@@ -259,6 +259,8 @@ patternProperties:
     description: DataImage, Inc.
   "^davicom,.*":
     description: DAVICOM Semiconductor, Inc.
+  "^dawn,.*":
+    description: Dawn Corporation
   "^dell,.*":
     description: Dell Inc.
   "^delta,.*":
