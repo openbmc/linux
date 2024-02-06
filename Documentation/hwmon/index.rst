@@ -183,6 +183,7 @@ Hardware Monitoring Kernel Drivers
    peci-dimmtemp
    pmbus
    powr1220
+   pt5161l
    pxe1610
    pwm-fan
    q54sj108a2
