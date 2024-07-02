@@ -57,6 +57,7 @@ static const struct of_device_id aspeed_wdt_of_table[] = {
 	{ .compatible = "aspeed,ast2400-wdt", .data = &ast2400_config },
 	{ .compatible = "aspeed,ast2500-wdt", .data = &ast2500_config },
 	{ .compatible = "aspeed,ast2600-wdt", .data = &ast2600_config },
+	{ .compatible = "aspeed,ast2700-wdt", .data = &ast2600_config },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
@@ -69,7 +70,8 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define   WDT_CTRL_RESET_MODE_SOC	(0x00 << 5)
 #define   WDT_CTRL_RESET_MODE_FULL_CHIP	(0x01 << 5)
 #define   WDT_CTRL_RESET_MODE_ARM_CPU	(0x10 << 5)
-#define   WDT_CTRL_1MHZ_CLK		BIT(4)
+#define   WDT_CTRL_RST_SOC		BIT(4)
+#define   WDT_CTRL_1MHZ_CLK		BIT(4) /* AST2400 only */
 #define   WDT_CTRL_WDT_EXT		BIT(3)
 #define   WDT_CTRL_WDT_INTR		BIT(2)
 #define   WDT_CTRL_RESET_SYSTEM		BIT(1)
@@ -373,13 +375,16 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 	ret = of_property_read_string(np, "aspeed,reset-type", &reset_type);
 	if (ret) {
 		wdt->ctrl |= WDT_CTRL_RESET_MODE_SOC | WDT_CTRL_RESET_SYSTEM;
+		if (!of_device_is_compatible(np, "aspeed,ast2400-wdt"))
+			wdt->ctrl |= WDT_CTRL_RST_SOC;
 	} else {
 		if (!strcmp(reset_type, "cpu"))
 			wdt->ctrl |= WDT_CTRL_RESET_MODE_ARM_CPU |
 				     WDT_CTRL_RESET_SYSTEM;
 		else if (!strcmp(reset_type, "soc"))
 			wdt->ctrl |= WDT_CTRL_RESET_MODE_SOC |
-				     WDT_CTRL_RESET_SYSTEM;
+				     WDT_CTRL_RESET_SYSTEM |
+				     WDT_CTRL_RST_SOC;
 		else if (!strcmp(reset_type, "system"))
 			wdt->ctrl |= WDT_CTRL_RESET_MODE_FULL_CHIP |
 				     WDT_CTRL_RESET_SYSTEM;
