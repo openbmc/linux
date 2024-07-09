@@ -7,3 +7,5 @@ obj-$(CONFIG_ASPEED_SOCINFO)		+= aspeed-socinfo.o
 obj-$(CONFIG_ASPEED_SBC)		+= aspeed-sbc.o
 obj-$(CONFIG_ASPEED_XDMA)		+= aspeed-xdma.o
 obj-$(CONFIG_ASPEED_UDMA)		+= aspeed-udma.o
+obj-$(CONFIG_AST2600_ESPI)              += ast2600-espi.o
+obj-$(CONFIG_AST2700_ESPI)              += ast2700-espi.o

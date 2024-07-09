@@ -444,6 +444,16 @@
 				aspeed,ahbc = <&ahbc>;
 			};
 
+			espi: espi@1e6ee000 {
+				compatible = "aspeed,ast2600-espi";
+				reg = <0x1e6ee000 0x1000>;
+				interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&syscon ASPEED_CLK_GATE_ESPICLK>;
+				resets = <&syscon ASPEED_RESET_ESPI>;
+				status = "disabled";
+			};
+
 			video: video@1e700000 {
 				compatible = "aspeed,ast2600-video-engine";
 				reg = <0x1e700000 0x1000>;
@@ -644,6 +654,13 @@
 					reg = <0x80 0x80>;
 					interrupts = <GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&syscon ASPEED_CLK_GATE_LCLK>;
+					status = "disabled";
+				};
+
+				lpc_pcc: lpc-pcc@0 {
+					compatible = "aspeed,ast2600-lpc-pcc";
+					reg = <0x0 0x140>;
+					interrupts = <GIC_SPI 145 IRQ_TYPE_LEVEL_HIGH>;
 					status = "disabled";
 				};
 
