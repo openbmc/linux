@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: GPL-2.0
+// Copyright (c) 2024 AMD Inc.
+// Author: Ashok kumar <ashok2.kumar@amd.com>
+
+/dts-v1/;
+
+#include "aspeed-g7.dtsi"
+#include "dt-bindings/gpio/aspeed-gpio.h"
+
+/ {
+	model = "AMD Marley BMC";
+	compatible = "amd,marley-bmc", "aspeed,ast2700";
+	
+	chosen {
+		stdout-path = &uart12;
+		bootargs = "console=ttyS12,115200n8";
+	};
+
+	firmware {
+		optee: optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
+	};
+
+	memory@400000000 {
+		device_type = "memory";
+		reg = <0x4 0x00000000 0x0 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		mcu_fw: mcu-firmware@42fe00000 {
+			reg = <0x4 0x2fe00000 0x0 0x200000>;
+			no-map;
+		};
+
+		atf: trusted-firmware-a@430000000 {
+			reg = <0x4 0x30000000 0x0 0x80000>;
+			no-map;
+		};
+
+		optee_core: optee_core@430080000 {
+			reg = <0x4 0x30080000 0x0 0x1000000>;
+			no-map;
+		};
+	};
+};
+
+&mdio0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&pinctrl1 {
+	pinctrl_rgmii0_driving: rgmii0_driving {
+		pins = "C20", "C19", "A8", "R14", "A7", "P14",
+		       "D20", "A6", "B6", "N14", "B7", "B8";
+		drive-strength = <1>;
+	};
+};
+
+&mac0 {
+	status = "okay";
+	phy-mode = "rgmii";
+	phy-handle = <&ethphy0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
+};
+
+&fmc {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_fwspi_quad_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "bmc";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+#include "aspeed-flash-layout-128.dtsi"
+	};
+
+	flash@1 {
+		status = "okay";
+		m25p,fast-read;
+		label = "mpflash";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+	};
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi0_default &pinctrl_spi0_cs1_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "pnor";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1_cs1_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "spi1:0";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+};
+
+//BMC Console
+&uart12 {
+	status = "okay";
+};
