@@ -32,12 +32,18 @@ struct hci_cmd_ops;
 /* Our main structure */
 struct i3c_hci {
 	struct i3c_master_controller master;
+	struct reset_control *rst, *dma_rst;
+	struct clk *clk;
 	void __iomem *base_regs;
 	void __iomem *DAT_regs;
 	void __iomem *DCT_regs;
 	void __iomem *RHS_regs;
 	void __iomem *PIO_regs;
 	void __iomem *EXTCAPS_regs;
+#ifdef CONFIG_ARCH_ASPEED
+	void __iomem *INHOUSE_regs;
+	void __iomem *PHY_regs;
+#endif
 	void __iomem *AUTOCMD_regs;
 	void __iomem *DEBUG_regs;
 	const struct hci_io_ops *io;
@@ -58,6 +64,15 @@ struct i3c_hci {
 	u32 vendor_version_id;
 	u32 vendor_product_id;
 	void *vendor_data;
+	struct completion ibi_comp;
+	struct completion pending_r_comp;
+	struct work_struct hj_work;
+
+	/* Used for handling private write */
+	struct {
+		void *buf;
+		u16 max_len;
+	} target_rx;
 };
 
 
@@ -115,6 +130,8 @@ struct hci_io_ops {
 	int (*request_ibi)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
 			   const struct i3c_ibi_setup *req);
 	void (*free_ibi)(struct i3c_hci *hci, struct i3c_dev_desc *dev);
+	int (*request_hj)(struct i3c_hci *hci);
+	void (*free_hj)(struct i3c_hci *hci);
 	void (*recycle_ibi_slot)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
 				struct i3c_ibi_slot *slot);
 	int (*init)(struct i3c_hci *hci);
@@ -140,5 +157,6 @@ struct i3c_hci_dev_data {
 void mipi_i3c_hci_resume(struct i3c_hci *hci);
 void mipi_i3c_hci_pio_reset(struct i3c_hci *hci);
 void mipi_i3c_hci_dct_index_reset(struct i3c_hci *hci);
+void mipi_i3c_hci_hj_ctrl(struct i3c_hci *hci, bool ack_nack);
 
 #endif

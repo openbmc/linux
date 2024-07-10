@@ -32,6 +32,9 @@
 #define I3C_CCC_DEFSLVS			I3C_CCC_ID(0x8, true)
 #define I3C_CCC_ENTTM			I3C_CCC_ID(0xb, true)
 #define I3C_CCC_ENTHDR(x)		I3C_CCC_ID(0x20 + (x), true)
+#define I3C_CCC_SETAASA			I3C_CCC_ID(0x29, true)
+#define I3C_CCC_SETHID			I3C_CCC_ID(0x61, true)
+#define I3C_CCC_DEVCTRL			I3C_CCC_ID(0x62, true)
 
 /* Unicast-only commands */
 #define I3C_CCC_SETDASA			I3C_CCC_ID(0x7, false)
@@ -244,6 +247,15 @@ struct i3c_ccc_setbrgtgt {
 } __packed;
 
 /**
+ * struct i3c_ccc_sethid - payload passed to SETHID CCC
+ *
+ * @hid: 3-bit HID
+ */
+struct i3c_ccc_sethid {
+	u8 hid;
+};
+
+/**
  * enum i3c_sdr_max_data_rate - max data rate values for private SDR transfers
  */
 enum i3c_sdr_max_data_rate {
@@ -291,6 +303,9 @@ struct i3c_ccc_getmxds {
  */
 struct i3c_ccc_gethdrcap {
 	u8 modes;
+	u8 caps;
+	u8 sup;
+	u8 reserved;
 } __packed;
 
 /**
@@ -369,6 +384,8 @@ struct i3c_ccc_cmd_dest {
  * @rnw: true if the CCC should retrieve data from the device. Only valid for
  *	 unicast commands
  * @id: CCC command id
+ * @dbp: true if the defining byte present
+ * @db: the defining byte
  * @ndests: number of destinations. Should always be one for broadcast commands
  * @dests: array of destinations and associated payload for this CCC. Most of
  *	   the time, only one destination is provided
@@ -377,6 +394,8 @@ struct i3c_ccc_cmd_dest {
 struct i3c_ccc_cmd {
 	u8 rnw;
 	u8 id;
+	u8 dbp;
+	u8 db;
 	unsigned int ndests;
 	struct i3c_ccc_cmd_dest *dests;
 	enum i3c_error_code err;

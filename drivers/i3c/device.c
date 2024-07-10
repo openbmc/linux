@@ -51,6 +51,125 @@ int i3c_device_do_priv_xfers(struct i3c_device *dev,
 EXPORT_SYMBOL_GPL(i3c_device_do_priv_xfers);
 
 /**
+ * i3c_device_send_hdr_cmds() - send HDR commands to a specific device
+ *
+ * @dev: device to which these commands should be sent
+ * @cmds: array of commands
+ * @ncmds: number of commands
+ *
+ * Send one or several HDR commands to @dev.
+ *
+ * This function can sleep and thus cannot be called in atomic context.
+ *
+ * Return: 0 in case of success, a negative error core otherwise.
+ */
+int i3c_device_send_hdr_cmds(struct i3c_device *dev, struct i3c_hdr_cmd *cmds,
+			     int ncmds)
+{
+	struct i3c_master_controller *master;
+	enum i3c_hdr_mode mode;
+	int ret, i;
+
+	if (ncmds < 1)
+		return 0;
+
+	mode = cmds[0].mode;
+	for (i = 1; i < ncmds; i++) {
+		if (mode != cmds[i].mode)
+			return -EINVAL;
+	}
+
+	master = i3c_dev_get_master(dev->desc);
+	if (!master)
+		return -EINVAL;
+
+	i3c_bus_normaluse_lock(&master->bus);
+	for (i = 0; i < ncmds; i++)
+		cmds[i].addr = dev->desc->info.dyn_addr;
+
+	ret = i3c_master_send_hdr_cmds_locked(master, cmds, ncmds);
+	i3c_bus_normaluse_unlock(&master->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_send_hdr_cmds);
+
+/**
+ * i3c_device_generate_ibi() - request In-Band Interrupt
+ *
+ * @dev: target device
+ * @data: IBI payload
+ * @len: payload length in bytes
+ *
+ * Request In-Band Interrupt with or without data payload.
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_generate_ibi(struct i3c_device *dev, const u8 *data, int len)
+{
+	int ret;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	ret = i3c_dev_generate_ibi_locked(dev->desc, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_generate_ibi);
+
+/**
+ * i3c_device_pending_read_notify() - Notify the bus master about the
+ *				      pending read data through IBI
+ *
+ * @dev: device with which the transfers should be done
+ * @pending_read: the transfer that conveys the pending read data
+ * @ibi_notify: the transfer that conveys the IBI with data (MDB)
+ *
+ * Initiate a private SDR transfer with @dev, then issue an IBI with
+ * data to notify the bus master that there is a pending read transfer.
+ *
+ * This function can sleep and thus cannot be called in atomic context.
+ *
+ * Return: 0 in case of success, a negative error core otherwise.
+ */
+int i3c_device_pending_read_notify(struct i3c_device *dev,
+				   struct i3c_priv_xfer *pending_read,
+				   struct i3c_priv_xfer *ibi_notify)
+{
+	int ret;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	ret = i3c_dev_pending_read_notify_locked(dev->desc, pending_read,
+						 ibi_notify);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_pending_read_notify);
+
+/**
+ * i3c_device_is_ibi_enabled() - Query the In-Band Interrupt status
+ *
+ * @dev: target device
+ *
+ * Queries the device to check if In-Band Interrupt (IBI) is enabled by the bus
+ * controller.
+ *
+ * Return: 1 if enabled, 0 if disabled.
+ */
+bool i3c_device_is_ibi_enabled(struct i3c_device *dev)
+{
+	bool ret;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	ret = i3c_dev_is_ibi_enabled_locked(dev->desc);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_is_ibi_enabled);
+
+/**
  * i3c_device_do_setdasa() - do I3C dynamic address assignement with
  *                           static address
  *
@@ -69,6 +188,30 @@ int i3c_device_do_setdasa(struct i3c_device *dev)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(i3c_device_do_setdasa);
+
+/**
+ * i3c_device_getstatus_ccc() - receive device status
+ *
+ * @dev: I3C device to get the status for
+ * @info: I3C device info to fill the status in
+ *
+ * Receive I3C device status from I3C master device via corresponding CCC
+ * command
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_getstatus_ccc(struct i3c_device *dev, struct i3c_device_info *info)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_getstatus_locked(dev->desc, info);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_getstatus_ccc);
 
 /**
  * i3c_device_get_info() - get I3C device information
@@ -291,3 +434,149 @@ void i3c_driver_unregister(struct i3c_driver *drv)
 	driver_unregister(&drv->driver);
 }
 EXPORT_SYMBOL_GPL(i3c_driver_unregister);
+
+/**
+ * i3c_device_control_pec() - enable or disable PEC support in HW
+ *
+ * @dev: I3C device to get the status for
+ * @pec: flag telling whether PEC support shall be enabled or disabled
+ *
+ * Try to enable or disable HW support for PEC (Packet Error Check).
+ * In case no HW support for PEC, software implementation could be used.
+ *
+ * Return: 0 in case of success, -EOPNOTSUPP in case PEC is not supported by HW,
+ *         other negative error codes when PEC enabling failed.
+ */
+int i3c_device_control_pec(struct i3c_device *dev, bool pec)
+{
+	return i3c_dev_control_pec(dev->desc, pec);
+}
+EXPORT_SYMBOL_GPL(i3c_device_control_pec);
+
+/**
+ * i3c_device_setmrl_ccc() - set maximum read length
+ *
+ * @dev: I3C device to set the length for
+ * @info: I3C device info to fill the length in
+ * @read_len: maximum read length value to be set
+ * @ibi_len: maximum ibi payload length to be set
+ *
+ * Set I3C device maximum read length from I3C master device via corresponding CCC command
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_setmrl_ccc(struct i3c_device *dev, struct i3c_device_info *info, u16 read_len,
+			  u8 ibi_len)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev->desc);
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (master)
+		ret = i3c_master_setmrl_locked(master, info, read_len, ibi_len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_setmrl_ccc);
+
+/**
+ * i3c_device_setmwl_ccc() - set maximum write length
+ *
+ * @dev: I3C device to set the length for
+ * @info: I3C device info to fill the length in
+ * @write_len: maximum write length value to be set
+ *
+ * Set I3C device maximum write length from I3C master device via corresponding CCC command
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_setmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info, u16 write_len)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev->desc);
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (master)
+		ret = i3c_master_setmwl_locked(master, info, write_len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_setmwl_ccc);
+
+/**
+ * i3c_device_getmrl_ccc() - get maximum read length
+ *
+ * @dev: I3C device to get the length for
+ * @info: I3C device info to fill the length in
+ *
+ * Receive I3C device maximum read length from I3C master device via corresponding CCC command
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_getmrl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev->desc);
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (master)
+		ret = i3c_master_getmrl_locked(master, info);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_getmrl_ccc);
+
+/**
+ * i3c_device_getmwl_ccc() - get maximum write length
+ *
+ * @dev: I3C device to get the length for
+ * @info: I3C device info to fill the length in
+ *
+ * Receive I3C device maximum write length from I3C master device via corresponding CCC command
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_getmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev->desc);
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (master)
+		ret = i3c_master_getmwl_locked(master, info);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_getmwl_ccc);
+
+int i3c_device_setaasa_ccc(struct i3c_device *dev)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev->desc);
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (master)
+		ret = i3c_master_setaasa_locked(master);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_setaasa_ccc);
+
+int i3c_device_sethid_ccc(struct i3c_device *dev)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev->desc);
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (master)
+		ret = i3c_master_sethid_locked(master);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_sethid_ccc);
