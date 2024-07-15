@@ -6,6 +6,7 @@
 
 #include "aspeed-g7.dtsi"
 #include "dt-bindings/gpio/aspeed-gpio.h"
+#include <dt-bindings/i2c/i2c.h>
 
 / {
 	model = "AMD Marley BMC";
@@ -135,4 +136,22 @@
 //BMC Console
 &uart12 {
 	status = "okay";
+};
+
+// I2C configs
+
+&i2c7 {
+	status = "okay";
+	scmeeprom@50 {
+		compatible = "atmel,24c08";
+		reg = <0x50>;
+	};
+};
+
+&i2c8 {
+	status = "okay";
+	hpmeeprom@50 {
+		compatible = "microchip,24lc256","atmel,24c256";
+		reg = <0x50>;
+	};
 };
