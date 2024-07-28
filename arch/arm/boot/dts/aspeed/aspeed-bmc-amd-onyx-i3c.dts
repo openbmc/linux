@@ -1,0 +1,210 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright (c) 2021 - 2024 AMD Inc.
+// Author: Supreeth Venkatesh <supreeth.venkatesh@amd.com>
+
+/dts-v1/;
+
+#include "ast2600-amd-bmc-common.dtsi"
+
+/ {
+	model = "AMD Onyx BMC with I3C";
+	compatible = "amd,onyx-bmc", "aspeed,ast2600";
+};
+
+#include <dt-bindings/i3c/i3c.h>
+
+&i3c0 {
+        // P0 DIMM (A-F) SPD Access
+        status = "okay";
+        bus-context = /bits/ 8 <I3C_BUS_CONTEXT_JESD403>;
+	i2c-scl-hz = <100000>;
+        i3c-scl-hz = <2000000>;
+
+        //DIMM A
+        spd5118_0_0: spd@50,3C000000000 {
+                reg = <0x50 0x3C0 0x00000000>;
+                assigned-address = <0x50>;
+        };
+	pmic5xxx_0_0: pmic@48,20400000000 {
+                reg = <0x48 0x204 0x00000000>;
+                assigned-address = <0x48>;
+        };
+        rcd_0_0: rcd@58,2C000000000 {
+                reg = <0x58 0x2C0 0x00000000>;
+                assigned-address = <0x58>;
+        };
+        //DIMM B
+        spd5118_0_1: spd@51,3C000000001 {
+                reg = <0x51 0x3C0 0x00000001>;
+                assigned-address = <0x51>;
+        };
+        pmic5xxx_0_1: pmic@49,20400000001 {
+                reg = <0x49 0x204 0x00000001>;
+                assigned-address = <0x49>;
+        };
+        rcd_0_1: rcd@59,2C000000001 {
+                reg = <0x59 0x2C0 0x00000001>;
+                assigned-address = <0x59>;
+        };
+        //DIMM C
+        spd5118_0_2: spd@52,3C000000002 {
+                reg = <0x52 0x3C0 0x00000002>;
+                assigned-address = <0x52>;
+        };
+        pmic5xxx_0_2: pmic@4a,20400000002 {
+                reg = <0x4a 0x204 0x00000002>;
+                assigned-address = <0x4a>;
+        };
+        rcd_0_2: rcd@5a,2C000000002 {
+                reg = <0x5a 0x2C0 0x00000002>;
+                assigned-address = <0x5a>;
+        };
+        //DIMM D
+        spd5118_0_3: spd@53,3C000000003 {
+                reg = <0x53 0x3C0 0x00000003>;
+                assigned-address = <0x53>;
+        };
+        pmic5xxx_0_3: pmic@4b,20400000003 {
+                reg = <0x4b 0x204 0x00000003>;
+                assigned-address = <0x4b>;
+        };
+        rcd_0_3: rcd@5b,2C000000003 {
+                reg = <0x5b 0x2C0 0x00000003>;
+                assigned-address = <0x5b>;
+        };
+        //DIMM E
+        spd5118_0_4: spd@54,3C000000004 {
+                reg = <0x54 0x3C0 0x00000004>;
+                assigned-address = <0x54>;
+        };
+        pmic5xxx_0_4: pmic@4c,20400000004 {
+                reg = <0x4c 0x204 0x00000004>;
+                assigned-address = <0x4c>;
+        };
+        rcd_0_4: rcd@5c,2C000000004 {
+                reg = <0x5c 0x2C0 0x00000004>;
+                assigned-address = <0x5c>;
+        };
+        //DIMM F
+        spd5118_0_5: spd@55,3C000000005 {
+                reg = <0x55 0x3C0 0x00000005>;
+                assigned-address = <0x55>;
+        };
+        pmic5xxx_0_5: pmic@4d,20400000005 {
+                reg = <0x4d 0x204 0x00000005>;
+                assigned-address = <0x4d>;
+        };
+        rcd_0_5: rcd@5d,2C000000005 {
+                reg = <0x5d 0x2C0 0x00000005>;
+                assigned-address = <0x5d>;
+        };
+};
+
+&i3c1 {
+        // P0 DIMM (A-F) SPD Access
+        status = "okay";
+        bus-context = /bits/ 8 <I3C_BUS_CONTEXT_JESD403>;
+	i2c-scl-hz = <100000>;
+        i3c-scl-hz = <2000000>;
+
+        //DIMM G
+        spd5118_1_0: spd@50,3C000000000 {
+                reg = <0x50 0x3C0 0x00000000>;
+                assigned-address = <0x50>;
+        };
+	pmic5xxx_1_0: pmic@48,20400000000 {
+                reg = <0x48 0x204 0x00000000>;
+                assigned-address = <0x48>;
+        };
+        rcd_1_0: rcd@58,2C000000000 {
+                reg = <0x58 0x2C0 0x00000000>;
+                assigned-address = <0x58>;
+        };
+        //DIMM H
+        spd5118_1_1: spd@51,3C000000001 {
+                reg = <0x51 0x3C0 0x00000001>;
+                assigned-address = <0x51>;
+        };
+        pmic5xxx_1_1: pmic@49,20400000001 {
+                reg = <0x49 0x204 0x00000001>;
+                assigned-address = <0x49>;
+        };
+        rcd_1_1: rcd@59,2C000000001 {
+                reg = <0x59 0x2C0 0x00000001>;
+                assigned-address = <0x59>;
+        };
+        //DIMM I
+        spd5118_1_2: spd@52,3C000000002 {
+                reg = <0x52 0x3C0 0x00000002>;
+                assigned-address = <0x52>;
+        };
+        pmic5xxx_1_2: pmic@4a,20400000002 {
+                reg = <0x4a 0x204 0x00000002>;
+                assigned-address = <0x4a>;
+        };
+        rcd_1_2: rcd@5a,2C000000002 {
+                reg = <0x5a 0x2C0 0x00000002>;
+                assigned-address = <0x5a>;
+        };
+        //DIMM J
+        spd5118_1_3: spd@53,3C000000003 {
+                reg = <0x53 0x3C0 0x00000003>;
+                assigned-address = <0x53>;
+        };
+        pmic5xxx_1_3: pmic@4b,20400000003 {
+                reg = <0x4b 0x204 0x00000003>;
+                assigned-address = <0x4b>;
+        };
+        rcd_1_3: rcd@5b,2C000000003 {
+                reg = <0x5b 0x2C0 0x00000003>;
+                assigned-address = <0x5b>;
+        };
+        //DIMM K
+        spd5118_1_4: spd@54,3C000000004 {
+                reg = <0x54 0x3C0 0x00000004>;
+                assigned-address = <0x54>;
+        };
+        pmic5xxx_1_4: pmic@4c,20400000004 {
+                reg = <0x4c 0x204 0x00000004>;
+                assigned-address = <0x4c>;
+        };
+        rcd_1_4: rcd@5c,2C000000004 {
+                reg = <0x5c 0x2C0 0x00000004>;
+                assigned-address = <0x5c>;
+        };
+        //DIMM L
+        spd5118_1_5: spd@55,3C000000005 {
+                reg = <0x55 0x3C0 0x00000005>;
+                assigned-address = <0x55>;
+        };
+        pmic5xxx_1_5: pmic@4d,20400000005 {
+                reg = <0x4d 0x204 0x00000005>;
+                assigned-address = <0x4d>;
+        };
+        rcd_1_5: rcd@5d,2C000000005 {
+                reg = <0x5d 0x2C0 0x00000005>;
+                assigned-address = <0x5d>;
+        };
+ };
+
+&i3c4 {
+        // P0 APML
+        status = "okay";
+        bus-context = /bits/ 8 <I3C_BUS_CONTEXT_JESD403>;
+        bus_id = <0x04>;
+
+        imx3112_p0: i3cmux@70,4CC00000000 {
+                reg = <0x70 0x4CC 0x00000000>;
+                assigned-address = <0x70>;
+        };
+        sbtsi_p0_0: sbtsi@4c,22400000001 {
+                compatible = "amd,sbtsi";
+                reg = <0x4c 0x224 0x00000001>;
+                assigned-address = <0x4c>;
+        };
+        sbrmi_p0_1: sbrmi@3c,22400000002 {
+                compatible = "amd,sbrmi";
+                reg = <0x3c 0x224 0x00000002>;
+                assigned-address = <0x3c>;
+        };
+};
