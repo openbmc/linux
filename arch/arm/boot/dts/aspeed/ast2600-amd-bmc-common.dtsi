@@ -1,0 +1,568 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright (c) 2021 - 2024 AMD Inc.
+// Author: Supreeth Venkatesh <supreeth.venkatesh@amd.com>
+
+/dts-v1/;
+
+#include "aspeed-g6.dtsi"
+#include <dt-bindings/gpio/aspeed-gpio.h>
+
+/ {
+	aliases {
+		serial0 = &uart1;
+		serial4 = &uart5;
+		ethernet0 = &mac3;
+		ethernet1 = &mac2;
+	};
+
+	chosen {
+		stdout-path = &uart5;
+		bootargs = "console=ttyS4,115200n8 earlycon";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		fault {
+			gpios = <&gpio0 ASPEED_GPIO(O, 6) GPIO_ACTIVE_HIGH>;
+		};
+
+		identify {
+			gpios = <&gpio0 ASPEED_GPIO(O, 7) GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		video_engine_memory: jpegbuffer {
+			size = <0x02000000>;	/* 32M */
+			alignment = <0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		pcc_memory: pccbuffer {
+                        no-map;
+                        reg = <0xE0000000 0x00001000>; /* 4K */
+                };
+	};
+
+	iio-hwmon-adc121c {
+		compatible = "iio-hwmon";
+		oemname0 = "FPGA_VDD_CORE";
+		oemname1 = "FPGA_VDD_18";
+		oemname2 = "FPGA_VDD_33";
+		oemname3 = "LOM_VDD_33";
+		oemname4 = "LOM_VDD_12";
+		oemname5 = "VDD_12_DUAL";
+		io-channels = <&scm_adc0 0>, <&scm_adc1 0>, <&scm_adc2 0>, <&scm_adc3 0>,
+                                        <&scm_adc4 0>, <&scm_adc5 0>;
+	};
+};
+
+&mdio0 {
+	status = "okay";
+
+	ethphy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&mac2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rmii3_default>;
+	clock-names = "MACCLK",	"RCLK";
+	use-ncsi;
+};
+
+&mac3 {
+	status = "okay";
+	phy-mode = "rgmii";
+	phy-handle = <&ethphy0>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rgmii4_default>;
+};
+
+&fmc {
+	status = "okay";
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		status = "okay";
+		label = "bmc";
+		#include "openbmc-flash-layout-128.dtsi"
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_qspi1_default>;
+	compatible = "aspeed,ast2600-spi";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		label = "pnor";
+		status = "okay";
+	};
+
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_qspi2_default>;
+	compatible = "aspeed,ast2600-spi";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		label = "pnor";
+		status = "okay";
+	};
+
+};
+
+// eSPI Virtual UART - 0x3F8
+&vuart1 {
+	status = "okay";
+};
+
+//Host console
+&uart1 {
+	//Host console
+	status = "okay";
+};
+
+//BMC Console
+&uart5 {
+	status = "okay";
+};
+
+// I2C configs
+&i2c0 {
+	//Net name i2c9 - MB FPGA slave
+	status = "okay";
+};
+
+&i2c1 {
+	//Net name i2c10 - onyx side i2c12
+	//Connected to TCA9546A and to LCD HDR
+	status = "okay";
+};
+
+&i2c4 {
+	// Net name i2c1
+	status = "okay";
+};
+
+// BMC Onyx VRs
+&i2c5 {
+	// Net name i2c2 (SCM_I2C2)
+	status = "okay";
+};
+
+&i2c7 {
+	// Net name i2c4
+	status = "okay";
+
+	mbeeprom@50 {
+	compatible = "microchip,24lc256","atmel,24c256";
+	reg = <0x50>;
+	};
+};
+
+&i2c8 {
+	// Net name i2c5 - PSU
+	status = "okay";
+};
+
+&i2c10 {
+	// Net name i2c7
+	status = "okay";
+
+	#ifdef EEPROM_PROG_ENABLE
+        i2cswitch@70 {
+                compatible = "nxp,pca9548";
+                reg = <0x70>;
+
+        };
+
+        i2cswitch@71 {
+                compatible = "nxp,pca9546";
+                reg = <0x71>;
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                i2c@0 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        reg = <0>;
+
+                        brdreveeprom@50 {
+                                //ONYX BRD ID
+                                compatible = "microchip,24lc256","atmel,24c256";
+                                reg = <0x50>;
+                        };
+
+                        scmbrdeeprom@51 {
+                                //SCM BRD ID
+                                compatible = "microchip,24lc256","atmel,24c256";
+                                reg = <0x51>;
+                        };
+                };
+
+        };
+#endif
+};
+
+&i2c11 {
+	// Net name i2c8 - MB LOM
+	status = "okay";
+};
+
+&i2c12 {
+	// LOCAL MGMT - FPGA slave
+	status = "okay";
+};
+
+&i2c14 {
+	// LOCAL MGMT - EEPROM, RTC
+	status = "okay";
+	bmceeprom@50 {
+	compatible = "microchip,24lc512","atmel,24c512";
+	reg = <0x50>;
+	};
+};
+
+&i2c15 {
+	// RoT
+	status = "okay";
+};
+
+&i2c9 {
+	// Net name i2c6
+	status = "okay";
+
+	i2cswitch@70 {
+                compatible = "nxp,pca9548";
+                reg = <0x70>;
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                //  port 0 to 3 connected to 4 fan controllers which controls 5 fans each
+                i2c@0 {
+                        reg = <0>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        emc2305@4d {
+                                compatible = "smsc,emc2305";
+                                reg = <0x4d>;
+                                #cooling-cells = <0x02>;
+
+                                fan@0 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                                fan@1 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@2 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@3 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@4 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                        };
+                };
+
+                i2c@1 {
+                        reg = <1>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        emc2305@4d {
+                                compatible = "smsc,emc2305";
+                                reg = <0x4d>;
+                                #cooling-cells = <0x02>;
+
+                                fan@0 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                                fan@1 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@2 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@3 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@4 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                        };
+                };
+
+                i2c@2 {
+                        reg = <2>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        emc2305@4d {
+                                compatible = "smsc,emc2305";
+                                reg = <0x4d>;
+                                #cooling-cells = <0x02>;
+
+                                fan@0 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                                fan@1 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@2 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@3 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@4 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                        };
+                };
+
+                i2c@3 {
+                        reg = <3>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        emc2305@4d {
+                                compatible = "smsc,emc2305";
+                                reg = <0x4d>;
+                                #cooling-cells = <0x02>;
+
+                                fan@0 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                                fan@1 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+
+                                fan@3 {
+                                        min-rpm = /bits/ 16 <1000>;
+                                        max-rpm = /bits/ 16 <16000>;
+                                };
+                        };
+                };
+
+                i2c@5 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        reg = <5>;
+
+                        lm75a@48 {
+                                compatible = "national,lm75a";
+                                reg = <0x48>;
+                        };
+
+                        lm75a@49 {
+                                compatible = "national,lm75a";
+                                reg = <0x49>;
+                        };
+
+                        lm75a@4a {
+                                compatible = "national,lm75a";
+                                reg = <0x4a>;
+                        };
+
+                        lm75a@4b {
+                                compatible = "national,lm75a";
+                                reg = <0x4b>;
+                        };
+
+                        lm75a@4c {
+                                compatible = "national,lm75a";
+                                reg = <0x4c>;
+                        };
+
+                        lm75a@4d {
+                                compatible = "national,lm75a";
+                                reg = <0x4d>;
+                        };
+
+                        lm75a@4e {
+                                compatible = "national,lm75a";
+                                reg = <0x4e>;
+                        };
+
+                        lm75a@4f {
+                                compatible = "national,lm75a";
+                                reg = <0x4f>;
+                        };
+                };
+
+                i2c@6 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        reg = <6>;
+
+                        scm_adc0: fpga_vdd_core@50 {
+                                compatible = "ti,adc121c";
+                                reg = <0x50>;
+                                #io-channel-cells = <1>;
+                                label = "fpga_vdd_core";
+                        };
+                        scm_adc1: fpga_vdd_18@51 {
+                                compatible = "ti,adc121c";
+                                reg = <0x51>;
+                                #io-channel-cells = <1>;
+                                label = "fpga_vdd_18";
+                        };
+                        scm_adc2: fpga_vdd_33@52 {
+                                compatible = "ti,adc121c";
+                                reg = <0x52>;
+                                #io-channel-cells = <1>;
+                                label = "fpga_vdd_33";
+                        };
+                        scm_adc3: lom_vdd_33@53 {
+                                compatible = "ti,adc121c";
+                                reg = <0x53>;
+                                #io-channel-cells = <1>;
+                                label = "lom_vdd_33";
+                        };
+                        scm_adc4: lom_vdd_12@54 {
+                                compatible = "ti,adc121c";
+                                reg = <0x54>;
+                                #io-channel-cells = <1>;
+                                label = "lom_vdd_12";
+                        };
+                        scm_adc5: vdd_12_dual@55 {
+                                compatible = "ti,adc121c";
+                                reg = <0x55>;
+                                #io-channel-cells = <1>;
+                                label = "vdd_12_dual";
+                        };
+                };
+
+                i2c@7 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        reg = <7>;
+
+                        tmp468@48 {
+                                compatible = "ti,tmp468";
+                                reg = <0x48>;
+                        };
+                };
+	};
+};
+
+&espi {
+	status = "okay";
+	perif-dma-mode;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+&gpio0 {
+	gpio-line-names =
+	/*A0-A7*/	"","","","","","","","",
+	/*B0-B7*/	"","","","","MON_POST_COMPLETE","P0_PRESENT_L","","",
+	/*C0-C7*/	"","","","","","","","",
+	/*D0-D7*/	"","","","","","","","",
+	/*E0-E7*/	"","","","","","","","",
+	/*F0-F7*/	"","","","","","","","",
+	/*G0-G7*/	"","","","","","","","",
+	/*H0-H7*/	"","ASSERT_WARM_RST_BTN_L","ASSERT_SOC_RST_BTN_L","","","","","",
+	/*I0-I7*/	"","","","","","","","P0_I3C_APML_ALERT_L",
+	/*J0-J7*/	"","","","","","","","",
+	/*K0-K7*/	"","","","","","","","",
+	/*L0-L7*/	"","","","","","","","",
+	/*M0-M7*/	"","","","","","","","",
+	/*N0-N7*/	"","","","","","","PSP_SOFT_FUSE_NOTIFY","ASSERT_BMC_READY",
+	/*O0-O7*/	"","","HDT_SEL","HDT_XTRIG5","HDT_XTRIG6","JTAG_TRST_N","","",
+	/*P0-P7*/	"MON_RST_BTN_L","ASSERT_RST_BTN_L","MON_PWR_BTN_L","ASSERT_PWR_BTN_L","HPM_FPGA_LOCKOUT","ASSERT_NMI_BTN_L","MON_PWR_GOOD","",
+	/*Q0-Q7*/	"","","HDT_DBREQ_L","","BIOS_SPD_MUX_CTRL_RELEASED_L","","","",
+	/*R0-R7*/	"","","","","","","","",
+	/*S0-S7*/	"","","","","","","P0_DIMM_AF_ERROR","P0_DIMM_GL_ERROR",
+	/*T0-T7*/	"","","","","","","","",
+	/*U0-U7*/	"","","","","","","","",
+	/*V0-V7*/	"","","","","","","","",
+	/*W0-W7*/	"","","","","","","","",
+	/*X0-X7*/	"","","","","","","","",
+	/*Y0-Y7*/	"","","","","","","","",
+	/*Z0-Z7*/	"","","","","","","","";
+};
+
+&video {
+	status = "okay";
+	memory-region = <&video_engine_memory>;
+};
+
+&vhub {
+	status = "okay";
+};
+
+&lpc_ctrl {
+	status = "okay";
+};
+
+&lpc_pcc {
+        port-addr = <0x80>;
+        dma-mode;
+        A2600-15;
+        memory-region = <&pcc_memory>;
+        rec-mode = <0x1>;
+        port-addr-hbits-select = <0x1>;
+        port-addr-xbits = <0x3>;
+
+        status = "okay";
+};
+
+&kcs3 {
+	status = "okay";
+	aspeed,lpc-io-reg = <0xCA2>;
+};
+
+&uart_routing {
+	status = "okay";
+};
