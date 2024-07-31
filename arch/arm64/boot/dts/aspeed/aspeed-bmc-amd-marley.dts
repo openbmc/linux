@@ -155,3 +155,197 @@
 		reg = <0x50>;
 	};
 };
+
+&i2c10 {
+	// Net name i2c2 (SCM_I2C2) - FAN/LM75/ADC
+	status = "okay";
+
+	i2cswitch@70 {
+		compatible = "nxp,pca9548";
+		reg = <0x70>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		//  port 0 to 4 connected to 5 fan controllers which controls 5 fans each
+		i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			emc2305@4d {
+				compatible = "smsc,emc2305";
+				reg = <0x4d>;
+				#cooling-cells = <0x02>;
+
+				fan@0 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+				fan@1 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@2 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@3 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@4 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+			};
+		};
+
+		i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			emc2305@4d {
+				compatible = "smsc,emc2305";
+				reg = <0x4d>;
+				#cooling-cells = <0x02>;
+
+				fan@0 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+				fan@1 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@2 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@3 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@4 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+			};
+		};
+
+		i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			emc2305@4d {
+				compatible = "smsc,emc2305";
+				reg = <0x4d>;
+				#cooling-cells = <0x02>;
+
+				fan@0 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+				fan@1 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@2 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@3 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@4 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+			};
+		};
+
+		i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			emc2305@4d {
+				compatible = "smsc,emc2305";
+				reg = <0x4d>;
+				#cooling-cells = <0x02>;
+
+				fan@0 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+				fan@1 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@2 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@3 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@4 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+			};
+		};
+
+		i2c@4 {
+			reg = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			emc2305@4d {
+				compatible = "smsc,emc2305";
+				reg = <0x4d>;
+				#cooling-cells = <0x02>;
+
+				fan@0 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+				fan@1 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@2 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@3 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+
+				fan@4 {
+					min-rpm = /bits/ 16 <1000>;
+					max-rpm = /bits/ 16 <16000>;
+				};
+			};
+		};
+	};
+};
+
