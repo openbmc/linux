@@ -427,4 +427,3 @@ module_auxiliary_driver(npcm8xx_clock_driver);
 MODULE_DESCRIPTION("Clock driver for Nuvoton NPCM8XX BMC SoC");
 MODULE_AUTHOR("Tomer Maimon <tomer.maimon@nuvoton.com>");
 MODULE_LICENSE("GPL v2");
-
