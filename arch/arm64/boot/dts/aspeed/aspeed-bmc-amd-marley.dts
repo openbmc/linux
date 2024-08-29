@@ -48,6 +48,18 @@
 			reg = <0x4 0x30080000 0x0 0x1000000>;
 			no-map;
 		};
+
+		video_engine_memory: jpegbuffer {
+			size = <0x02000000>;	/* 32M */
+			alignment = <0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		pcc_memory: pccbuffer {
+			reg = <0xE0000000 0x00001000>; /* 4K */
+			no-map;
+		};
 	};
 };
 
@@ -113,8 +125,8 @@
 		m25p,fast-read;
 		label = "pnor";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
 	};
 };
 
@@ -126,11 +138,22 @@
 	flash@0 {
 		status = "okay";
 		m25p,fast-read;
-		label = "spi1:0";
+		label = "pnor";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
 	};
+};
+
+// eSPI Virtual UART - 0x3F8
+&vuart1 {
+	status = "okay";
+};
+
+//Host console
+&uart1 {
+	//Host console
+	status = "okay";
 };
 
 //BMC Console
@@ -139,6 +162,20 @@
 };
 
 // I2C configs
+
+&i2c2 {
+	// P0 APML
+	status = "okay";
+	bus-frequency = <400000>;
+	sbrmi@3c {
+		compatible = "amd,sbrmi";
+		reg = <0x3c>;
+	};
+	sbtsi@4c {
+		compatible = "amd,sbtsi";
+		reg = <0x4c>;
+	};
+};
 
 &i2c7 {
 	status = "okay";
@@ -349,3 +386,76 @@
 	};
 };
 
+&gpio0 {
+	gpio-line-names =
+		/*A0-A7*/       "","","","","","","","",
+		/*B0-B7*/       "","","","","","","","",
+		/*C0-C7*/       "","","","","","","","",
+		/*D0-D7*/       "","","","","","","","",
+		/*E0-E7*/       "","","","","","","","",
+		/*F0-F7*/       "","","","","","","","",
+		/*G0-G7*/       "","","","","","","","",
+		/*H0-H7*/       "","","","","","","","",
+		/*I0-I7*/       "","","","","","","","",
+		/*J0-J7*/       "","","","","","","","",
+		/*K0-K7*/       "","","","","","","","",
+		/*L0-L7*/       "","","","","","","","",
+		/*M0-M7*/       "","","","","","","","",
+		/*N0-N7*/       "","","","","","","","",
+		/*O0-O7*/       "","","","","","","","",
+		/*P0-P7*/       "","","","","","","","",
+		/*Q0-Q7*/       "","","","","","","","",
+		/*R0-R7*/       "","","","","","","","",
+		/*S0-S7*/       "","","","","","","","",
+		/*T0-T7*/       "","","","","","","","",
+		/*U0-U7*/       "","","","","","","","",
+		/*V0-V7*/       "","","","","","","","",
+		/*W0-W7*/       "","","","","","","","",
+		/*X0-X7*/       "","","","","","","","",
+		/*Y0-Y7*/       "","","","","","","","",
+		/*Z0-Z7*/       "","","","","","","","",
+		/*AA0-AA7*/     "","","","","","","","",
+		/*AB0-AB7*/     "HPM_STBY_EN","P0_MGMT_ASSERT_CLR_CMOS",
+				"P0_MGMT_MON_PROCHOT_L","","","",
+				"P0_MGMT_ASSERT_NMI_BTN_L",
+				"MGMT_SYS_MON_ATX_PWR_OK",
+		/*AC0-AC7*/     "P0_PRESENT_L","P0_MGMT_MON_RSMRST_L",
+				"P0_MGMT_MON_POST_COMPLETE","P0_MGMT_MON_THERMTRIP_L",
+				"P0_MGMT_MON_PWR_GOOD","P0_ASSERT_RSMRST",
+				"P0_MGMT_SOC_RESET_L",
+				"P0_MGMT_MON_PSP_SOFT_FUSE_NOTIFY",
+		/*AD0-AD7*/     "P0_I3C_APML_ALERT_L","MGMT_HDT_SEL",
+				"SCM_JTAG_DBREQ","JTAG_TRST_N","P1_PRESENT_L","","","",
+		/*AE0-AE7*/     "P0_MGMT_ASSERT_RST_BTN_L",
+				"P0_MGMT_ASSERT_PWR_BTN_L",
+				"P0_MGMT_MON_RST_BTN_L",
+				"P0_MGMT_MON_PWR_BTN_L","","","","";
+};
+
+&video0 {
+	status = "okay";
+	memory-region = <&video_engine_memory>;
+};
+
+&espi0 {
+	status = "okay";
+	perif-dma-mode;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+&lpc0_pcc {
+	port-addr = <0x80>;
+	dma-mode;
+	A2600-15;
+	memory-region = <&pcc_memory>;
+	rec-mode = <0x1>;
+	port-addr-hbits-select = <0x1>;
+	port-addr-xbits = <0x3>;
+
+	status = "okay";
+};
+
+&lpc0_uart_routing {
+	status = "okay";
+};

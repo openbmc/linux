@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include <dt-bindings/clock/aspeed,ast1700-clk.h>
+#include <dt-bindings/reset/aspeed,ast1700-reset.h>
+
+/ {
+	aliases {
+		i3c104 = &ltpi0_i3c4;
+		i3c105 = &ltpi0_i3c5;
+		i3c106 = &ltpi0_i3c6;
+		i3c107 = &ltpi0_i3c7;
+		i3c108 = &ltpi0_i3c8;
+		i3c109 = &ltpi0_i3c9;
+		i3c110 = &ltpi0_i3c10;
+		i3c111 = &ltpi0_i3c11;
+	};
+
+	ltpi0_bus: ltpi0_bus@30000000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		ltpi0_syscon: syscon@30c02000 {
+			compatible = "aspeed,ast1700-scu", "syscon", "simple-mfd";
+			reg = <0x0 0x30c02000 0x0 0x1000>;
+			ranges = <0x0 0x0 0x0 0x30c02000 0x0 0x1000>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+
+			ltpi0_rst: reset-controller@200 {
+				reg = <0x0 0x200 0x0 0x40>;
+			};
+
+			ltpi0_clk: clock-controller@240 {
+				reg = <0x0 0x240 0x0 0x1c0>;
+			};
+
+			ltpi0_pinctrl: pinctrl@400 {
+				compatible = "aspeed,ast1700-pinctrl";
+				reg = <0x0 0x400 0x0 0x100>;
+			};
+		};
+
+		ltpi0_spi2: spi@30030000 {
+			reg = <0x0 0x30030000 0x0 0x1f0>, <0x2 0x80000000 0x0 0x04000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
+			resets = <&ltpi0_syscon AST1700_RESET_SPI2>;
+			num-cs = <2>;
+			ltpi-base = <0x0 0x34000000>;
+			status = "disabled";
+		};
+
+		ltpi0_pwm_tach: pwm-tach-controller@300c0000 {
+			compatible = "aspeed,ast2700-pwm-tach";
+			reg = <0x0 0x300c0000 0 0x100>;
+			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
+			resets = <&ltpi0_syscon AST1700_RESET_PWM>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		ltpi0_adc0: adc@30c00000 {
+			compatible = "aspeed,ast2700-adc0";
+			reg = <0x0 0x30c00000 0 0x100>;
+			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
+			resets = <&ltpi0_syscon AST1700_RESET_ADC>;
+			interrupts-extended = <&soc0_intc6 16>;
+			#io-channel-cells = <1>;
+			aspeed,scu = <&ltpi0_syscon>;
+			status = "disabled";
+		};
+
+		ltpi0_adc1: adc@30c00100 {
+			compatible = "aspeed,ast2700-adc1";
+			reg = <0x0 0x30c00100 0x0 0x100>;
+			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
+			resets = <&ltpi0_syscon AST1700_RESET_ADC>;
+			interrupts-extended = <&soc0_intc6 16>;
+			#io-channel-cells = <1>;
+			aspeed,scu = <&ltpi0_syscon>;
+			status = "disabled";
+		};
+
+		ltpi0_jtag: jtag@30c09000 {
+			compatible = "aspeed,ast2700-jtag";
+			reg= <0x0 0x30c09000 0x0 0x40>;
+			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
+			resets = <&ltpi0_syscon AST1700_RESET_JTAG1>;
+			status = "disabled";
+		};
+
+		ltpi0_i2c: bus@30c0f000 {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x0 0x30c0f000 0x1100>;
+		};
+
+		ltpi0_i3c4: i3c4@30c24000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c24000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 6>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C4CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C4>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c5: i3c5@30c25000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c25000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 7>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C5CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C5>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c6: i3c6@30c26000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c26000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 8>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C6CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C6>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c7: i3c7@30c27000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c27000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 9>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C7CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C7>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c8: i3c8@30c28000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c28000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 10>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C8CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C8>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c9: i3c9@30c29000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c29000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 11>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C9CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C9>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c10: i3c10@30c2a000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c2a000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 12>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C10CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C10>;
+			status = "disabled";
+		};
+
+		ltpi0_i3c11: i3c11@30c2b000 {
+			compatible = "aspeed-i3c-hci";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x30c2b000 0x0 0x1000>;
+			interrupts-extended = <&soc0_intc6 13>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C11CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C11>;
+			status = "disabled";
+		};
+
+		ltpi0_ltpi: ltpi@30c34000 {
+			compatible = "aspeed-ltpi";
+			reg = <0x0 0x30c34000 0x0 0x100>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_LTPICLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_LTPI>;
+			remote-controller;
+			aspeed,scu = <&ltpi0_syscon>;
+			status = "okay";
+		};
+
+		ltpi0_wdt0: watchdog@30c37000 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x30c37000 0x0 0x40>;
+		};
+	};
+};
+
+#include "aspeed-ltpi0-pinctrl.dtsi"
+
+&ltpi0_i2c {
+	ltpi0_i2c_global: i2c-global-regs@0 {
+		compatible = "aspeed,i2c-global", "simple-mfd", "syscon";
+		reg = <0x0 0x100>;
+		status = "disabled";
+	};
+
+	ltpi0_i2c0: i2c-bus@100 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#interrupt-cells = <1>;
+		reg = <0x100 0x80>, <0x1a0 0x20>;
+		compatible = "aspeed,ast2600-i2cv2";
+		aspeed,enable-buff;
+		aspeed,global-regs = <&ltpi0_i2c_global>;
+		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
+		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
+		interrupts-extended = <&soc0_intc6 0>;
+		clock-frequency = <100000>;
+		status = "disabled";
+	};
+
+	ltpi0_i2c1: i2c-bus@200 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#interrupt-cells = <1>;
+		reg = <0x200 0x80>, <0x2a0 0x20>;
+		compatible = "aspeed,ast2600-i2cv2";
+		aspeed,enable-buff;
+		aspeed,global-regs = <&ltpi0_i2c_global>;
+		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
+		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
+		interrupts-extended = <&soc0_intc6 1>;
+		clock-frequency = <100000>;
+		status = "disabled";
+	};
+
+	ltpi0_i2c2: i2c-bus@300 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#interrupt-cells = <1>;
+		reg = <0x300 0x80>, <0x3a0 0x20>;
+		compatible = "aspeed,ast2600-i2cv2";
+		aspeed,enable-buff;
+		aspeed,global-regs = <&ltpi0_i2c_global>;
+		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
+		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
+		interrupts-extended = <&soc0_intc6 2>;
+		clock-frequency = <100000>;
+		status = "disabled";
+	};
+
+	ltpi0_i2c3: i2c-bus@400 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#interrupt-cells = <1>;
+		reg = <0x400 0x80>, <0x4a0 0x20>;
+		compatible = "aspeed,ast2600-i2cv2";
+		aspeed,enable-buff;
+		aspeed,global-regs = <&ltpi0_i2c_global>;
+		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
+		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
+		interrupts-extended = <&soc0_intc6 3>;
+		clock-frequency = <100000>;
+		status = "disabled";
+	};
+
+	ltpi0_i2c4: i2c-bus@500 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#interrupt-cells = <1>;
+		reg = <0x500 0x80>, <0x5a0 0x20>;
+		compatible = "aspeed,ast2600-i2cv2";
+		aspeed,enable-buff;
+		aspeed,global-regs = <&ltpi0_i2c_global>;
+		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
+		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
+		clock-frequency = <100000>;
+		interrupts-extended = <&soc0_intc6 4>;
+		status = "disabled";
+	};
+
+	ltpi0_i2c5: i2c-bus@600 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#interrupt-cells = <1>;
+		reg = <0x600 0x80>, <0x6a0 0x20>;
+		compatible = "aspeed,ast2600-i2cv2";
+		aspeed,enable-buff;
+		aspeed,global-regs = <&ltpi0_i2c_global>;
+		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
+		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
+		interrupts-extended = <&soc0_intc6 5>;
+		clock-frequency = <100000>;
+		status = "disabled";
+	};
+};
