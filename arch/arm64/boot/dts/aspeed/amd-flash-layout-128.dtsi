@@ -21,12 +21,12 @@ partitions {
 	};
 
 	rofs@b20000 {
-		reg = <0x1220000 0x2000000>; // 32MB
+		reg = <0x1220000 0x4DE0000>; // 77.875MB
 		label = "rofs";
 	};
 
 	rwfs@6000000 {
-		reg = <0x3220000 0x4DE0000>; // 79.75MB
+		reg = <0x6000000 0x2000000>; // 32MB
 		label = "rwfs";
 	};
 };
