@@ -65,6 +65,8 @@
 #ifdef EEPROM_PROG_ENABLE
 		i2c100 = &channel_0_0;
 #endif
+		i2c102 = &channel_0_2;
+		i2c120 = &vr_2_0;
 		i2c121 = &temp_2_1;
 		i2c122 = &fans_2_2;
 		i2c123 = &fans_2_3;
@@ -174,7 +176,6 @@
 		compatible = "microchip,24lc256","atmel,24c256";
 		reg = <0x50>;
 	};
-#ifdef EEPROM_PROG_ENABLE
 	// SCM brd_id, Congo brd_id, CLK
 	i2cswitch@70 {
 		compatible = "nxp,pca9546";
@@ -182,6 +183,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+#ifdef EEPROM_PROG_ENABLE
 		channel_0_0: i2c@0 {
 			reg = <0>;
 			#address-cells = <1>;
@@ -198,8 +200,38 @@
 				reg = <0x52>;
 			};
 		};
-	};
 #endif
+		channel_0_2: i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <2>;
+			core0run@40 {
+				//P0_VDD_CORE_0_RUN
+				compatible = "isil,isl68137";
+				reg = <0x40>;
+			};
+			core1run@41 {
+				//P0_VDD_CORE_1_RUN
+				compatible = "isil,isl68137";
+				reg = <0x41>;
+			};
+			vddvddiorun@42 {
+				//P0_VDD_VDDIO_RUN
+				compatible = "isil,isl68137";
+				reg = <0x42>;
+			};
+			vdd33s5run@46 {
+				//P0_VDD_33_S5_RUN
+				compatible = "pmbus";
+				reg = <0x46>;
+			};
+			vdd18s5run@47 {
+				//P0_VDD_18_S5_RUN
+				compatible = "pmbus";
+				reg = <0x47>;
+			};
+	   };
+	};
 };
 
 &i2c10 {
@@ -211,6 +243,28 @@
 		reg = <0x73>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		vr_2_0: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			vdd33dual@43 {
+				//VDD_33_DUAL VRM
+				compatible = "pmbus";
+				reg = <0x43>;
+			};
+			vdd33run@45 {
+				//VDD_33_RUN VRM
+				compatible = "pmbus";
+				reg = <0x45>;
+			};
+			vdd5dual@48 {
+				//VDD_5_DUAL VRM
+				compatible = "pmbus";
+				reg = <0x48>;
+			};
+		};
 
 		temp_2_1: i2c@1 {
 			reg = <1>;

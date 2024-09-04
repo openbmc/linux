@@ -64,8 +64,11 @@
 	aliases {
 
 #ifdef EEPROM_PROG_ENABLE
-		i2c100 = &channel_0_0;
+		i2c100 = &p0_channel_0_0;
+		i2c200 = &p1_channel_0_0;
 #endif
+		i2c102 = &p0_channel_0_2;
+		i2c120 = &vr_2_0;
 		i2c121 = &temp_2_1;
 		i2c122 = &fans_2_2;
 		i2c123 = &fans_2_3;
@@ -73,6 +76,7 @@
 		i2c125 = &fans_2_5;
 		i2c126 = &adc_2_6;
 		i2c127 = &pdb_adc_2_0;
+		i2c202 = &p1_channel_0_2;
 	};
 };
 
@@ -179,7 +183,6 @@
 		compatible = "microchip,24lc256","atmel,24c256";
 		reg = <0x50>;
 	};
-#ifdef EEPROM_PROG_ENABLE
 	// SCM brd_id, Congo brd_id, CLK
 	i2cswitch@70 {
 		compatible = "nxp,pca9546";
@@ -187,7 +190,8 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		channel_0_0: i2c@0 {
+#ifdef EEPROM_PROG_ENABLE
+		p0_channel_0_0: i2c@0 {
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -203,8 +207,99 @@
 				reg = <0x52>;
 			};
 		};
-	};
 #endif
+		p0_channel_0_2: i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <2>;
+			p0core0run@40 {
+				//P0_VDD_CORE_0_RUN
+				compatible = "infineon,xdpe12284";
+				reg = <0x40>;
+			};
+			p0core1run@41 {
+				//P0_VDD_CORE_1_RUN
+				compatible = "infineon,xdpe12284";
+				reg = <0x41>;
+			};
+			p0vddvddiorun@42 {
+				//P0_VDD_VDDIO_RUN
+				compatible = "infineon,xdpe12284";
+				reg = <0x42>;
+			};
+			p0vdd33s5run@46 {
+				//P0_VDD_33_S5_RUN
+				compatible = "pmbus";
+				reg = <0x46>;
+			};
+			p0vdd18s5run@47 {
+				//P0_VDD_18_S5_RUN
+				compatible = "pmbus";
+				reg = <0x47>;
+			};
+		};
+	};
+};
+
+&i2c9 {
+	// Net name SCM_I2C<1>
+	status = "okay";
+	// SCM brd_id, Congo brd_id, CLK
+	i2cswitch@70 {
+		compatible = "nxp,pca9546";
+		reg = <0x70>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+#ifdef EEPROM_PROG_ENABLE
+		p1_channel_0_0: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			// BRD ID eeprom
+			p1brdreveeprom@51 {
+				compatible = "microchip,24lc256","atmel,24c256";
+				reg = <0x51>;
+			};
+			// SCM BRD ID eeprom
+			p1scmbrdeeprom@52 {
+				compatible = "microchip,24lc256","atmel,24c256";
+				reg = <0x52>;
+			};
+		};
+#endif
+		p1_channel_0_2: i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <2>;
+			p1core0run@40 {
+				//P1_VDD_CORE_0_RUN
+				compatible = "infineon,xdpe12284";
+				reg = <0x40>;
+			};
+			p1core1run@41 {
+				//P1_VDD_CORE_1_RUN
+				compatible = "infineon,xdpe12284";
+				reg = <0x41>;
+			};
+			p1vddvddiorun@42 {
+				//P1_VDD_VDDIO_RUN
+				compatible = "infineon,xdpe12284";
+				reg = <0x42>;
+			};
+			p1vdd33s5run@46 {
+				//P1_VDD_33_S5_RUN
+				compatible = "pmbus";
+				reg = <0x46>;
+			};
+			p1vdd18s5run@47 {
+				//P1_VDD_18_S5_RUN
+				compatible = "pmbus";
+				reg = <0x47>;
+			};
+		};
+	};
 };
 
 &i2c10 {
@@ -216,6 +311,33 @@
 		reg = <0x70>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		vr_2_0: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			vdd33dual@43 {
+				//VDD_33_DUAL VRM
+				compatible = "pmbus";
+				reg = <0x43>;
+			};
+			vdd33runb@44 {
+				//VDD_33_RUN_B VRM
+				compatible = "pmbus";
+				reg = <0x44>;
+			};
+			vdd33run@45 {
+				//VDD_33_RUN VRM
+				compatible = "pmbus";
+				reg = <0x45>;
+			};
+			vdd33run@48 {
+				//VDD_5_DUAL VRM
+				compatible = "pmbus";
+				reg = <0x48>;
+			};
+		};
 
 		temp_2_1: i2c@1 {
 			reg = <1>;
