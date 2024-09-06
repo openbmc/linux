@@ -1,0 +1,296 @@
+// SPDX-License-Identifier: GPL-2.0
+// Copyright (c) 2024 AMD Inc.
+// Author: Mahesh Kurapati <mahesh.kurapati@amd.com>
+
+/dts-v1/;
+
+#include "aspeed-g7.dtsi"
+#include "dt-bindings/gpio/aspeed-gpio.h"
+#include <dt-bindings/i2c/i2c.h>
+
+/ {
+	model = "AMD Kenya PRB";
+	compatible = "amd,kenya-bmc", "aspeed,ast2700";
+
+	chosen {
+		stdout-path = &uart12;
+		bootargs = "console=ttyS12,115200n8";
+	};
+
+	firmware {
+		optee: optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
+	};
+
+	memory@400000000 {
+		device_type = "memory";
+		reg = <0x4 0x00000000 0x0 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		mcu_fw: mcu-firmware@42fe00000 {
+			reg = <0x4 0x2fe00000 0x0 0x200000>;
+			no-map;
+		};
+
+		atf: trusted-firmware-a@430000000 {
+			reg = <0x4 0x30000000 0x0 0x80000>;
+			no-map;
+		};
+
+		optee_core: optee_core@430080000 {
+			reg = <0x4 0x30080000 0x0 0x1000000>;
+			no-map;
+		};
+
+		video_engine_memory: jpegbuffer {
+			size = <0x02000000>;	/* 32M */
+			alignment = <0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		pcc_memory: pccbuffer {
+                        reg = <0xE0000000 0x00001000>; /* 4K */
+			no-map;
+                };
+	};
+	aliases {
+		i2c120 = &vr_2_0;
+		i2c121 = &temp_2_1;
+		i2c122 = &lcd_2_2;
+		i2c123 = &clk_2_3;
+		i2c124 = &usb_2_4;
+		i2c125 = &adc_2_5;
+	};
+};
+
+&mdio0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&pinctrl1 {
+	pinctrl_rgmii0_driving: rgmii0_driving {
+		pins = "C20", "C19", "A8", "R14", "A7", "P14",
+		       "D20", "A6", "B6", "N14", "B7", "B8";
+		drive-strength = <1>;
+	};
+};
+
+&mac0 {
+	status = "okay";
+	phy-mode = "rgmii";
+	phy-handle = <&ethphy0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
+};
+
+&fmc {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_fwspi_quad_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "bmc";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+#include "amd-flash-layout-128.dtsi"
+	};
+
+	flash@1 {
+		status = "okay";
+		m25p,fast-read;
+		label = "mpflash";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+	};
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi0_default &pinctrl_spi0_cs1_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "pnor";
+		spi-max-frequency = <16000000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1_cs1_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "pnor";
+		spi-max-frequency = <16000000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+};
+
+//BMC Console
+&uart12 {
+	status = "okay";
+};
+
+&i2c7 {
+	status = "okay";
+	scmeeprom@50 {
+		compatible = "atmel,24c08";
+		reg = <0x50>;
+	};
+};
+
+&i2c8 {
+	// Net name SCM_I2C<0>
+	status = "okay";
+	hpmeeprom@50 {
+		compatible = "microchip,24lc256","atmel,24c256";
+		reg = <0x50>;
+	};
+};
+
+&i2c10 {
+	// Net name i2c2 (SCM_I2C_SDA<2>) - VR/LM75/ADC
+	status = "okay";
+
+	i2cswitch@70 {
+		compatible = "nxp,pca9548";
+		reg = <0x70>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		vr_2_0: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		temp_2_1: i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		lcd_2_2: i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		clk_2_3: i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		usb_2_4: i2c@4 {
+			reg = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		adc_2_5: i2c@5 {
+			reg = <5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+};
+
+&gpio0 {
+        gpio-line-names =
+                /*A0-A7*/       "","","","","","","","",
+                /*B0-B7*/       "","","","","","","","",
+                /*C0-C7*/       "","","","","","","","",
+                /*D0-D7*/       "","","","","","","","",
+                /*E0-E7*/       "","","","","","","","",
+                /*F0-F7*/       "","","","","","","","",
+                /*G0-G7*/       "","","","","","","","",
+                /*H0-H7*/       "","","","","","","","",
+                /*I0-I7*/       "","","","","","","","",
+                /*J0-J7*/       "","","","","","","","",
+                /*K0-K7*/       "","","","","","","","",
+                /*L0-L7*/       "","","","","","","","",
+                /*M0-M7*/       "","","","","","","","",
+                /*N0-N7*/       "","","","","","","","",
+                /*O0-O7*/       "","","","","","","","",
+                /*P0-P7*/       "","","","","","","","",
+                /*Q0-Q7*/       "","","","","","","","",
+                /*R0-R7*/       "","","","","","","","",
+                /*S0-S7*/       "","","","","","","","",
+                /*T0-T7*/       "","","","","","","","",
+                /*U0-U7*/       "","","","","","","","",
+                /*V0-V7*/       "","","","","","","","",
+                /*W0-W7*/       "","","","","","","","",
+                /*X0-X7*/       "","","","","","","","",
+                /*Y0-Y7*/       "","","","","","","","",
+                /*Z0-Z7*/       "","","","","","","","",
+                /*AA0-AA7*/     "","","","","","","","",
+                /*AB0-AB7*/     "HPM_STBY_EN","P0_MGMT_ASSERT_CLR_CMOS",
+				"P0_MGMT_MON_PROCHOT_L","","","",
+				"P0_MGMT_ASSERT_NMI_BTN_L",
+				"MGMT_SYS_MON_ATX_PWR_OK",
+                /*AC0-AC7*/     "P0_PRESENT_L","P0_MGMT_MON_RSMRST_L",
+				"P0_MGMT_MON_POST_COMPLETE",
+				"P0_MGMT_MON_THERMTRIP_L",
+				"P0_MGMT_MON_PWR_GOOD","P0_ASSERT_RSMRST",
+				"P0_MGMT_SOC_RESET_L",
+				"P0_MGMT_MON_PSP_SOFT_FUSE_NOTIFY",
+                /*AD0-AD7*/     "P0_I3C_APML_ALERT_L","MGMT_HDT_SEL",
+				"SCM_JTAG_DBREQ","JTAG_TRST_N","P1_PRESENT_L",
+				"","","",
+                /*AE0-AE7*/     "P0_MGMT_ASSERT_RST_BTN_L",
+				"P0_MGMT_ASSERT_PWR_BTN_L",
+				"P0_MGMT_MON_RST_BTN_L",
+				"P0_MGMT_MON_PWR_BTN_L","","","","";
+};
+
+&video0 {
+	status = "okay";
+	memory-region = <&video_engine_memory>;
+};
+
+&espi0 {
+	status = "okay";
+	perif-dma-mode;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+&lpc0_pcc {
+        port-addr = <0x80>;
+        dma-mode;
+        A2600-15;
+        memory-region = <&pcc_memory>;
+        rec-mode = <0x1>;
+        port-addr-hbits-select = <0x1>;
+        port-addr-xbits = <0x3>;
+
+        status = "okay";
+};
