@@ -1111,6 +1111,7 @@
 
 &i2c8 {
 	status = "okay";
+	bus-frequency = <400000>;
 
 	i2c-mux@71 {
 		compatible = "nxp,pca9548";
@@ -1572,6 +1573,7 @@
 
 &i2c15 {
 	status = "okay";
+	bus-frequency = <400000>;
 
 	i2c-mux@71 {
 		compatible = "nxp,pca9548";
