@@ -11,6 +11,7 @@
 #include <linux/device.h>
 #include <linux/errno.h>
 #include <linux/clk.h>
+#include <linux/moduleparam.h>
 #include <linux/reset.h>
 #include <linux/i3c/master.h>
 #include <linux/i3c/target.h>
@@ -125,6 +126,10 @@
 
 #ifdef CONFIG_ARCH_ASPEED
 
+static bool i3c_device_power = false;
+module_param(i3c_device_power, bool, 0644);
+MODULE_PARM_DESC(i3c_device_power, "I3C device power status");
+
 static u32 aspeed_i3c_get_sdr_phy_reg(struct i3c_hci *hci)
 {
 	struct i3c_bus *bus = i3c_master_get_bus(&hci->master);
@@ -200,6 +205,17 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	 * Set it to a minimum of 60ns to ensure proper functionality.
 	 */
 	min_tbit_cnt = DIV_ROUND_UP(60, core_period) - 1;
+
+	/* Workaround . Need to remove once hardware support is available
+	   for internal LDO powerup support is available. Check for the JESD403
+	   compliance is added to avoid changing the frequency for the i3c buses
+	   like APML on which there are no i3c hub devices. This check can be
+	   removed when hardware support is available for internal LDO powerup.
+	 */
+	if (!i3c_device_power && hci->master.bus.context == I3C_BUS_CONTEXT_JESD403) {
+		hci->master.bus.scl_rate.i3c = 1000000;
+		dev_info(&hci->master.dev, "Updated clock to 1Mhz");
+	}
 
 	dev_info(&hci->master.dev, "core rate = %ld core period = %ld ns", core_rate, core_period);
 
@@ -462,6 +478,18 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
 	    ccc->dests[0].payload.len);
 
+	/*
+	 * Driver should be able to send the CCC commands on the i3c buses like the
+	 * APML/I3C bus on which there is no i3chub device. Following check for
+	 * JESD403 is added so that the driver will not skip sending the CCC commands.
+	 * Once the support of LDO internal powerup from the hardware, the check for
+	 * JESD403 can be removed.
+	 */
+	if (!i3c_device_power && m->bus.context == I3C_BUS_CONTEXT_JESD403) {
+		 dev_info(&hci->master.dev,"User requested to skip CCC commands \n");
+		 return 0;
+	}
+
 	xfer = hci_alloc_xfer(nxfers);
 	if (!xfer)
 		return -ENOMEM;
@@ -723,7 +751,8 @@ static int i3c_hci_attach_i3c_dev(struct i3c_dev_desc *dev)
 	if (hci->cmd == &mipi_i3c_hci_cmd_v1) {
 #ifdef CONFIG_ARCH_ASPEED
 		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci,
-						      dev->info.dyn_addr ?: dev->info.static_addr);
+			dev->info.dyn_addr ?
+			dev->info.dyn_addr : dev->info.static_addr);
 #else
 		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci);
 #endif
@@ -732,7 +761,8 @@ static int i3c_hci_attach_i3c_dev(struct i3c_dev_desc *dev)
 			return ret;
 		}
 		mipi_i3c_hci_dat_v1.set_dynamic_addr(hci, ret,
-						     dev->info.dyn_addr ?: dev->info.static_addr);
+			dev->info.dyn_addr ?
+			dev->info.dyn_addr : dev->info.static_addr);
 		dev_data->dat_idx = ret;
 	}
 	i3c_dev_set_master_data(dev, dev_data);
