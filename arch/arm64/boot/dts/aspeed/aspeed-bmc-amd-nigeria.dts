@@ -212,6 +212,21 @@
 			reg = <2>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			pvddcrcpu0p0@61 {
+				//PVDDCR_CPU0_VDDIO_MEM_S3_P0_CONTROLLER
+				compatible = "mps,mp2856";
+				reg = <0x61>;
+			};
+			pvddcrcpu1p0@62 {
+				//PVDDCR_CPU1_PVDDCR_SOC_P0_CONTROLLER
+				compatible = "mps,mp2856";
+				reg = <0x62>;
+			};
+			pvddiop0@63 {
+				//PVDDIO_P0_CONTROLLER
+				compatible = "mps,mp2856";
+				reg = <0x63>;
+			};
 		};
 
 		p0_0_3: i2c@3 {
@@ -249,6 +264,21 @@
 			reg = <2>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			pvddcrcpu0p1@64 {
+				//PVDDCR_CPU0_VDDIO_MEM_S3_P1_CONTROLLER
+				compatible = "mps,mp2856";
+				reg = <0x64>;
+			};
+			pvddcrcpu1p1@65 {
+				//PVDDCR_CPU1_PVDDCR_SOC_P1_CONTROLLER
+				compatible = "mps,mp2856";
+				reg = <0x65>;
+			};
+			pvddiop1@66 {
+				//PVDDIO_P1_CONTROLLER
+				compatible = "mps,mp2856";
+				reg = <0x66>;
+			};
 		};
 
 		p1_0_3: i2c@3 {
