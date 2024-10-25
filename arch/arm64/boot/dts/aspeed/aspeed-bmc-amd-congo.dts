@@ -255,6 +255,7 @@
 
 &i2c7 {
 	status = "okay";
+        clock-frequency = <400000>;
 	scmeeprom@50 {
 		compatible = "atmel,24c08";
 		reg = <0x50>;
@@ -264,6 +265,7 @@
 &i2c8 {
 	// Net name SCM_I2C<0>
 	status = "okay";
+        clock-frequency = <400000>;
 	hpmeeprom@50 {
 		compatible = "microchip,24lc256","atmel,24c256";
 		reg = <0x50>;
@@ -329,7 +331,7 @@
 &i2c10 {
 	// Net name i2c2 (SCM_I2C_SDA<2>) - FAN/LM75/ADC
 	status = "okay";
-
+        clock-frequency = <400000>;
 	i2cswitch@73 {
 		compatible = "nxp,pca9548";
 		reg = <0x73>;
