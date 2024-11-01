@@ -72,6 +72,8 @@
 		i2c125 = &adc_2_5;
 		i2c126 = &adc_2_6;
 		i2c127 = &pcp_2_7;
+                i2c150 = &pdb1_fan;
+                i2c151 = &pdb2_fan;
 		i2c200 = &p1_0_0;
 		i2c201 = &p1_0_1;
 		i2c202 = &p1_0_2;
@@ -171,6 +173,37 @@
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
+        i2cswitch@70 {
+                compatible = "nxp,pca9548";
+                reg = <0x70>;
+                #address-cells = <1>;
+                #size-cells = <0>;
+                pdb1_fan: i2c@4 {
+                        reg = <4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        nct7363@20 {
+                                compatible = "nuvoton,nct7363";
+                                reg = <0x20>;
+                        };
+                };
+        };
+
+        i2cswitch@72 {
+                compatible = "nxp,pca9548";
+                reg = <0x72>;
+                #address-cells = <1>;
+                #size-cells = <0>;
+                pdb2_fan: i2c@2 {
+                        reg = <2>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        nct7363@20 {
+                                compatible = "nuvoton,nct7363";
+                                reg = <0x20>;
+                        };
+                };
+        };
 };
 
 &i2c7 {
