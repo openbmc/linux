@@ -201,12 +201,14 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	/* core_period is in nanosecond */
 	core_period = DIV_ROUND_UP(1000000000, core_rate);
 
+#if 0
 	/* Workaround . Need to remove once hardware support is available
 	   for internal LDO powerup support is available. */
 	if (!i3c_device_power) {
 		hci->master.bus.scl_rate.i3c = 1000000;
 		dev_info(&hci->master.dev, "Updated clock to 1Mhz");
 	}
+#endif
 
 	dev_info(&hci->master.dev, "core rate = %ld core period = %ld ns", core_rate, core_period);
 
@@ -471,10 +473,12 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
 	    ccc->dests[0].payload.len);
 
+#if 0
 	if (!i3c_device_power) {
 		 dev_info(&hci->master.dev,"User requested to skip CCC commands \n");
 		 return 0;
 	}
+#endif
 
 	xfer = hci_alloc_xfer(nxfers);
 	if (!xfer)
