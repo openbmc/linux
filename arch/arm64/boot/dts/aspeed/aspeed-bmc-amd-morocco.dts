@@ -607,8 +607,8 @@
 &i3c4 {
 	status = "okay";
 	initial-role = "primary";
-	bus-context = /bits/ 8 <I3C_BUS_CONTEXT_JESD403>;
-	i3c-scl-hz = <10000000>;
+	internal-pullup = <2>;
+	i3c-scl-hz = <12500000>;
 	i2c-scl-hz = <1000000>;
 	sbtsi_p0_0: sbtsi@4c,22400000001 {
 		reg = <0x4c 0x224 0x00000001>;
