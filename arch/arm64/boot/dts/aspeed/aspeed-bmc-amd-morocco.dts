@@ -627,7 +627,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
         bcr = /bits/ 8 <0x6>; \
 }
 &i3c8 {
-	status = "okay";
+//	status = "okay";
 	initial-role = "primary";
 	bus-context = /bits/ 8 <I3C_BUS_CONTEXT_JESD403>;
 	internal-pullup = <2>;
@@ -652,7 +652,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 };
 
 &i3c9 {
-	status = "okay";
+//	status = "okay";
 	initial-role = "primary";
 	bus-context = /bits/ 8 <I3C_BUS_CONTEXT_JESD403>;
 	internal-pullup = <2>;
