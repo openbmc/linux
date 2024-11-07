@@ -745,6 +745,12 @@ static int i3c_hci_attach_i3c_dev(struct i3c_dev_desc *dev)
 			return ret;
 		}
 		mipi_i3c_hci_dat_v1.set_dynamic_addr(hci, ret, dev->info.dyn_addr);
+
+#ifdef CONFIG_ARCH_ASPEED
+		/* set the DEV_NACK_RETRY_CNT to max for this device */
+		mipi_i3c_hci_dat_v1.set_flags(hci, ret, W0_MASK(30, 29), 0);
+#endif
+
 		dev_data->dat_idx = ret;
 	}
 	i3c_dev_set_master_data(dev, dev_data);
