@@ -202,8 +202,12 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	core_period = DIV_ROUND_UP(1000000000, core_rate);
 
 	/* Workaround . Need to remove once hardware support is available
-	   for internal LDO powerup support is available. */
-	if (!i3c_device_power) {
+	   for internal LDO powerup support is available. Check for the JESD403
+	   compliance is added to avoid changing the frequency for the i3c buses
+	   like APML on which there are no i3c hub devices. This check can be
+	   removed when hardware support is available for internal LDO powerup.
+	 */
+	if (!i3c_device_power && hci->master.bus.context == I3C_BUS_CONTEXT_JESD403) {
 		hci->master.bus.scl_rate.i3c = 1000000;
 		dev_info(&hci->master.dev, "Updated clock to 1Mhz");
 	}
@@ -471,7 +475,14 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
 	    ccc->dests[0].payload.len);
 
-	if (!i3c_device_power) {
+	/*
+	 * Driver should be able to send the CCC commands on the i3c buses like the
+	 * APML/I3C bus on which there is no i3chub device. Following check for
+	 * JESD403 is added so that the driver will not skip sending the CCC commands.
+	 * Once the support of LDO internal powerup from the hardware, the check for
+	 * JESD403 can be removed.
+	 */
+	if (!i3c_device_power && m->bus.context == I3C_BUS_CONTEXT_JESD403) {
 		 dev_info(&hci->master.dev,"User requested to skip CCC commands \n");
 		 return 0;
 	}
