@@ -103,7 +103,8 @@ static int hci_dat_v1_alloc_entry(struct i3c_hci *hci, unsigned int address)
 	__set_bit(dat_idx, hci->DAT_data);
 
 	/* default flags */
-	dat_w0_write(dat_idx, DAT_0_SIR_REJECT | DAT_0_MR_REJECT);
+	dat_w0_write(dat_idx,
+		DAT_0_DEV_NACK_RETRY_CNT | DAT_0_SIR_REJECT | DAT_0_MR_REJECT);
 
 	return dat_idx;
 }
