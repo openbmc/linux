@@ -261,6 +261,10 @@
         };
 };
 
+&i2c1 {
+	status = "okay";
+};
+
 &i2c7 {
 	status = "okay";
         clock-frequency = <400000>;
