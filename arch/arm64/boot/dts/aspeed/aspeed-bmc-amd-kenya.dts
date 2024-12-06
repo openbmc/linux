@@ -103,6 +103,14 @@
 	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
 };
 
+&mac1 {
+        status = "okay";
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_rmii1_default>;
+        clock-names = "MACCLK", "RCLK";
+        use-ncsi;
+};
+
 &fmc {
 	status = "okay";
 	pinctrl-0 = <&pinctrl_fwspi_quad_default>;
