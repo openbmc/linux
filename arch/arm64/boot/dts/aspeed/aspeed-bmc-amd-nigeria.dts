@@ -565,18 +565,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	status = "okay";
 };
 
-&usb2ahp {
-	status = "okay";
-};
-
-&usb2bhp {
-	status = "okay";
-};
-
-&phy2a {
-	status = "okay";
-};
-
 &phy3a {
 	status = "okay";
 };
