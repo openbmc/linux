@@ -501,6 +501,7 @@
 			aspeed,config = <&pcie_config0>;
 			aspeed,device = <&pcie_device0>;
 			aspeed,e2m = <&e2m_config0>;
+			aspeed,scu = <&syscon0>;
 			pcie2lpc;
 			status = "disabled";
 		};
@@ -513,6 +514,7 @@
 			aspeed,config = <&pcie_config1>;
 			aspeed,device = <&pcie_device1>;
 			aspeed,e2m = <&e2m_config1>;
+			aspeed,scu = <&syscon0>;
 			pcie2lpc;
 			status = "disabled";
 		};
