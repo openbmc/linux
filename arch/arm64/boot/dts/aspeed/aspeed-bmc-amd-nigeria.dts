@@ -60,24 +60,42 @@
 	};
 
 	aliases {
-		i2c100 = &p0_0_0;
-		i2c101 = &p0_0_1;
-		i2c102 = &p0_0_2;
-		i2c103 = &p0_0_3;
-		i2c120 = &vr_2_0;
-		i2c121 = &temp_2_1;
-		i2c122 = &lcd_2_2;
-		i2c123 = &clk_2_3;
-		i2c124 = &usb_2_4;
-		i2c125 = &adc_2_5;
-		i2c126 = &adc_2_6;
-		i2c127 = &pcp_2_7;
-                i2c150 = &pdb1_fan;
-                i2c151 = &pdb2_fan;
-		i2c200 = &p1_0_0;
-		i2c201 = &p1_0_1;
-		i2c202 = &p1_0_2;
-		i2c203 = &p1_0_3;
+		i2c100 = &NC_1;
+		i2c101 = &NC_2;
+		i2c102 = &riser_123;
+		i2c103 = &NC_3;
+		i2c104 = &fan_0;
+		i2c105 = &p0_pcp;
+		i2c106 = &NC_4;
+		i2c107 = &NC_5;
+		i2c108 = &riser_456;
+		i2c109 = &NC_6;
+		i2c110 = &picp;
+		i2c111 = &NC_7;
+		i2c112 = &NC_8;
+		i2c113 = &p1_pcp;
+		i2c114 = &NC_9;
+		i2c115 = &NC_10;
+		i2c116 = &p0_id;
+		i2c117 = &p0_clk;
+		i2c118 = &p0_vr;
+		i2c119 = &p0_sec;
+		i2c120 = &sys_vr;
+		i2c121 = &temp;
+		i2c122 = &fan_1;
+		i2c123 = &fan_2;
+		i2c124 = &temp_outlet;
+		i2c125 = &NC_11;
+		i2c126 = &adc;
+		i2c127 = &pcp;
+		i2c128 = &p0_lcd;
+		i2c129 = &p1_lcd;
+		i2c130 = &clk;
+		i2c131 = &usb3;
+		i2c132 = &p1_id;
+		i2c133 = &p1_clk;
+		i2c134 = &p1_vr;
+		i2c135 = &p1_sec;
 	};
 };
 
@@ -181,37 +199,6 @@
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
-        i2cswitch@70 {
-                compatible = "nxp,pca9548";
-                reg = <0x70>;
-                #address-cells = <1>;
-                #size-cells = <0>;
-                pdb1_fan: i2c@4 {
-                        reg = <4>;
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-                        nct7363@20 {
-                                compatible = "nuvoton,nct7363";
-                                reg = <0x20>;
-                        };
-                };
-        };
-
-        i2cswitch@72 {
-                compatible = "nxp,pca9548";
-                reg = <0x72>;
-                #address-cells = <1>;
-                #size-cells = <0>;
-                pdb2_fan: i2c@2 {
-                        reg = <2>;
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-                        nct7363@20 {
-                                compatible = "nuvoton,nct7363";
-                                reg = <0x20>;
-                        };
-                };
-        };
 };
 
 &i2c7 {
@@ -230,48 +217,56 @@
 		reg = <0x50>;
 	};
 
-	// SCM brd_id, Congo brd_id, CLK
 	i2cswitch@70 {
-		compatible = "nxp,pca9546";
+		compatible = "nxp,pca9548";
 		reg = <0x70>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		p0_0_0: i2c@0 {
+		NC_1: i2c@0 {
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
-		p0_0_1: i2c@1 {
+		NC_2: i2c@1 {
 			reg = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
-		p0_0_2: i2c@2 {
+		riser_123: i2c@2 {
 			reg = <2>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			pvddcrcpu0p0@61 {
-				//PVDDCR_CPU0_VDDIO_MEM_S3_P0_CONTROLLER
-				compatible = "mps,mp2856";
-				reg = <0x61>;
-			};
-			pvddcrcpu1p0@62 {
-				//PVDDCR_CPU1_PVDDCR_SOC_P0_CONTROLLER
-				compatible = "mps,mp2856";
-				reg = <0x62>;
-			};
-			pvddiop0@63 {
-				//PVDDIO_P0_CONTROLLER
-				compatible = "mps,mp2856";
-				reg = <0x63>;
-			};
 		};
 
-		p0_0_3: i2c@3 {
+		NC_3: i2c@3 {
 			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		fan_0: i2c@4 {
+			reg = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		p0_pcp: i2c@5 {
+			reg = <5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_4: i2c@6 {
+			reg = <6>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_5: i2c@7 {
+			reg = <7>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
@@ -282,47 +277,177 @@
 	// Net name SCM_I2C<1>
 	status = "okay";
 
-	// SCM brd_id, Congo brd_id, CLK
+	i2cswitch@70 {
+		compatible = "nxp,pca9548";
+		reg = <0x70>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		riser_456: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_6: i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		picp: i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_7: i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_8: i2c@4 {
+			reg = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		p1_pcp: i2c@5 {
+			reg = <5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_9: i2c@6 {
+			reg = <6>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_10: i2c@7 {
+			reg = <7>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+};
+
+&i2c10 {
+	// Net name i2c2 (SCM_I2C_SDA<2>)
+	status = "okay";
+
 	i2cswitch@70 {
 		compatible = "nxp,pca9546";
 		reg = <0x70>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		p1_0_0: i2c@0 {
+		p0_id: i2c@0 {
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
-		p1_0_1: i2c@1 {
+		p0_clk: i2c@1 {
 			reg = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
-		p1_0_2: i2c@2 {
+		p0_vr: i2c@2 {
 			reg = <2>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			pvddcrcpu0p1@64 {
-				//PVDDCR_CPU0_VDDIO_MEM_S3_P1_CONTROLLER
-				compatible = "mps,mp2856";
-				reg = <0x64>;
-			};
-			pvddcrcpu1p1@65 {
-				//PVDDCR_CPU1_PVDDCR_SOC_P1_CONTROLLER
-				compatible = "mps,mp2856";
-				reg = <0x65>;
-			};
-			pvddiop1@66 {
-				//PVDDIO_P1_CONTROLLER
-				compatible = "mps,mp2856";
-				reg = <0x66>;
-			};
 		};
 
-		p1_0_3: i2c@3 {
+		p0_sec: i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+
+	i2cswitch@71 {
+		compatible = "nxp,pca9548";
+		reg = <0x71>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sys_vr: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		temp: i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		fan_1: i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		fan_2: i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		temp_outlet: i2c@4 {
+			reg = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		NC_11: i2c@5 {
+			reg = <5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		adc: i2c@6 {
+			reg = <6>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		pcp: i2c@7 {
+			reg = <7>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+
+	i2cswitch@72 {
+		compatible = "nxp,pca9546";
+		reg = <0x72>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		p0_lcd: i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		p1_lcd: i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		clk: i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		usb3: i2c@3 {
 			reg = <3>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -330,65 +455,40 @@
 	};
 };
 
+&i2c13 {
+        // Net name i2c3 (SCM_I2C_SDA<3>)
+        status = "okay";
 
-&i2c10 {
-	// Net name i2c2 (SCM_I2C_SDA<2>) - VR/LM75/ADC
-	status = "okay";
+        i2cswitch@70 {
+                compatible = "nxp,pca9546";
+                reg = <0x70>;
+                #address-cells = <1>;
+                #size-cells = <0>;
 
-	i2cswitch@70 {
-		compatible = "nxp,pca9548";
-		reg = <0x70>;
-		#address-cells = <1>;
-		#size-cells = <0>;
+                p1_id: i2c@0 {
+                        reg = <0>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                };
 
-		vr_2_0: i2c@0 {
-			reg = <0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
+                p1_clk: i2c@1 {
+                        reg = <1>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                };
 
-		temp_2_1: i2c@1 {
-			reg = <1>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
+                p1_vr: i2c@2 {
+                        reg = <2>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                };
 
-		lcd_2_2: i2c@2 {
-			reg = <2>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-
-		clk_2_3: i2c@3 {
-			reg = <3>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-
-		usb_2_4: i2c@4 {
-			reg = <4>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-
-		adc_2_5: i2c@5 {
-			reg = <5>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-
-		adc_2_6: i2c@6 {
-			reg = <6>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-
-		pcp_2_7: i2c@7 {
-			reg = <7>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-	};
+                p1_sec: i2c@3 {
+                        reg = <3>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                };
+        };
 };
 
 &i3c4 {
