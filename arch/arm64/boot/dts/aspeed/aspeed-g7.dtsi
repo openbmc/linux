@@ -1884,7 +1884,7 @@
 			compatible = "aspeed,ast2600-uart";
 			reg = <0x0 0x14c30000 0x0 0x40>;
 			interrupts-extended = <&intc1_0 17>;
-			clock-frequency = <1846154>;
+			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
 			status = "disabled";
 		};
@@ -1893,7 +1893,7 @@
 			compatible = "aspeed,ast2600-uart";
 			reg = <0x0 0x14c30100 0x0 0x40>;
 			interrupts-extended = <&intc1_0 18>;
-			clock-frequency = <1846154>;
+			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
 			status = "disabled";
 		};
@@ -1902,7 +1902,7 @@
 			compatible = "aspeed,ast2600-uart";
 			reg = <0x0 0x14c30200 0x0 0x40>;
 			interrupts-extended = <&intc1_1 17>;
-			clock-frequency = <1846154>;
+			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
 			status = "disabled";
 		};
@@ -1911,7 +1911,7 @@
 			compatible = "aspeed,ast2600-uart";
 			reg = <0x0 0x14c30300 0x0 0x40>;
 			interrupts-extended = <&intc1_1 18>;
-			clock-frequency = <1846154>;
+			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
 			status = "disabled";
 		};
