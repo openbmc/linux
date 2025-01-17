@@ -2294,7 +2294,7 @@
 		interrupts-extended = <&soc0_intc2 13>;
 		clock-frequency = <100000>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_i2c13_default>;
+		pinctrl-0 = <&pinctrl_di2c13_default>;
 		status = "disabled";
 	};
 
