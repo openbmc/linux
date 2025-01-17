@@ -11,23 +11,18 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/kstrtox.h>
+#include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/regmap.h>
 #include <linux/watchdog.h>
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, bool, 0);
 MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started (default="
 				__MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
-
-struct aspeed_wdt_config {
-	u32 ext_pulse_width_mask;
-	u32 irq_shift;
-	u32 irq_mask;
-};
-
 struct aspeed_wdt {
 	struct watchdog_device	wdd;
 	void __iomem		*base;
@@ -35,29 +30,120 @@ struct aspeed_wdt {
 	const struct aspeed_wdt_config *cfg;
 };
 
+struct aspeed_wdt_scu {
+	const char *compatible;
+	u32 reset_status_reg;
+	u32 wdt_reset_mask;
+	u32 wdt_sw_reset_mask;
+	u32 wdt_reset_mask_shift;
+};
+
+struct aspeed_wdt_config {
+	u32 ext_pulse_width_mask;
+	u32 irq_shift;
+	u32 irq_mask;
+	struct aspeed_wdt_scu scu;
+	u32 reset_mask_num;
+	u32 sw_reset_ctrl;
+	u32 sw_reset_mask_offset;
+	int (*restart)(struct aspeed_wdt *wdt);
+};
+
+static int aspeed_ast2400_wdt_restart(struct aspeed_wdt *wdt);
+static int aspeed_ast2600_wdt_restart(struct aspeed_wdt *wdt);
+static int aspeed_ast2700_wdt_restart(struct aspeed_wdt *wdt);
+
 static const struct aspeed_wdt_config ast2400_config = {
 	.ext_pulse_width_mask = 0xff,
 	.irq_shift = 0,
 	.irq_mask = 0,
+	.scu = {
+		.compatible = "aspeed,ast2400-scu",
+		.reset_status_reg = 0x3c,
+		.wdt_reset_mask = 0x1,
+		.wdt_sw_reset_mask = 0,
+		.wdt_reset_mask_shift = 1,
+	},
+	.reset_mask_num = 1,
+	.sw_reset_ctrl = 0x0,
+	.sw_reset_mask_offset = 0x0,
+	.restart = aspeed_ast2400_wdt_restart,
 };
 
 static const struct aspeed_wdt_config ast2500_config = {
 	.ext_pulse_width_mask = 0xfffff,
 	.irq_shift = 12,
 	.irq_mask = GENMASK(31, 12),
+	.scu = {
+		.compatible = "aspeed,ast2500-scu",
+		.reset_status_reg = 0x3c,
+		.wdt_reset_mask = 0x1,
+		.wdt_sw_reset_mask = 0,
+		.wdt_reset_mask_shift = 2,
+	},
+	.reset_mask_num = 1,
+	.sw_reset_ctrl = 0x0,
+	.sw_reset_mask_offset = 0x0,
+	.restart = aspeed_ast2400_wdt_restart,
 };
 
 static const struct aspeed_wdt_config ast2600_config = {
 	.ext_pulse_width_mask = 0xfffff,
 	.irq_shift = 0,
 	.irq_mask = GENMASK(31, 10),
+	.scu = {
+		.compatible = "aspeed,ast2600-scu",
+		.reset_status_reg = 0x74,
+		.wdt_reset_mask = 0xf,
+		.wdt_sw_reset_mask = 0x8,
+		.wdt_reset_mask_shift = 16,
+	},
+	.reset_mask_num = 2,
+	.sw_reset_ctrl = 0x24,
+	.sw_reset_mask_offset = 0x28,
+	.restart = aspeed_ast2600_wdt_restart,
+};
+
+static const struct aspeed_wdt_config ast2700a0_config = {
+	.ext_pulse_width_mask = 0xfffff,
+	.irq_shift = 0,
+	.irq_mask = GENMASK(31, 10),
+	.scu = {
+		.compatible = "aspeed,ast2700a0-scu0",
+		.reset_status_reg = 0x70,
+		.wdt_reset_mask = 0xf,
+		.wdt_sw_reset_mask = 0x8,
+		.wdt_reset_mask_shift = 0,
+	},
+	.reset_mask_num = 5,
+	.sw_reset_ctrl = 0x30,
+	.sw_reset_mask_offset = 0x34,
+	.restart = aspeed_ast2700_wdt_restart,
+};
+
+static const struct aspeed_wdt_config ast2700_config = {
+	.ext_pulse_width_mask = 0xfffff,
+	.irq_shift = 0,
+	.irq_mask = GENMASK(31, 10),
+	.scu = {
+		.compatible = "aspeed,ast2700-scu0",
+		.reset_status_reg = 0x70,
+		.wdt_reset_mask = 0xf,
+		.wdt_sw_reset_mask = 0x8,
+		.wdt_reset_mask_shift = 0,
+	},
+	.reset_mask_num = 5,
+	.sw_reset_ctrl = 0x30,
+	.sw_reset_mask_offset = 0x34,
+	.restart = aspeed_ast2700_wdt_restart,
 };
 
 static const struct of_device_id aspeed_wdt_of_table[] = {
 	{ .compatible = "aspeed,ast2400-wdt", .data = &ast2400_config },
 	{ .compatible = "aspeed,ast2500-wdt", .data = &ast2500_config },
 	{ .compatible = "aspeed,ast2600-wdt", .data = &ast2600_config },
-	{ .compatible = "aspeed,ast2700-wdt", .data = &ast2600_config },
+	{ .compatible = "aspeed,ast2700a0-wdt", .data = &ast2700a0_config },
+	{ .compatible = "aspeed,ast2700-wdt", .data = &ast2700_config },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
@@ -83,6 +169,8 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define   WDT_CLEAR_TIMEOUT_AND_BOOT_CODE_SELECTION	BIT(0)
 #define WDT_RESET_MASK1		0x1c
 #define WDT_RESET_MASK2		0x20
+#define WDT_SW_FLAGS_CTRL	0x4C
+#define   WDT_SW_RESET_INDICATOR	0x80
 
 /*
  * WDT_RESET_WIDTH controls the characteristics of the external pulse (if
@@ -117,6 +205,10 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define     WDT_OPEN_DRAIN_MAGIC	(0x8A << 24)
 
 #define WDT_RESTART_MAGIC	0x4755
+#define WDT_SW_RESET_COUNT_CLEAR	0xDEADDEAD
+#define WDT_SW_RESET_ENABLE	0xAEEDF123
+
+#define WDT_SW_FLAGS_CLR	0xEA000000
 
 /* 32 bits at 1MHz, in milliseconds */
 #define WDT_MAX_TIMEOUT_MS	4294967
@@ -202,17 +294,118 @@ static int aspeed_wdt_set_pretimeout(struct watchdog_device *wdd,
 	return 0;
 }
 
-static int aspeed_wdt_restart(struct watchdog_device *wdd,
-			      unsigned long action, void *data)
+static int aspeed_ast2400_wdt_restart(struct aspeed_wdt *wdt)
 {
-	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
-
 	wdt->ctrl &= ~WDT_CTRL_BOOT_SECONDARY;
 	aspeed_wdt_enable(wdt, 128 * WDT_RATE_1MHZ / 1000);
 
 	mdelay(1000);
 
 	return 0;
+}
+
+static int aspeed_ast2600_wdt_restart(struct aspeed_wdt *wdt)
+{
+	u32 reg;
+	u32 ctrl = WDT_CTRL_RESET_MODE_SOC |
+		   WDT_CTRL_RESET_SYSTEM;
+	int i;
+
+	for (i = 0; i < wdt->cfg->reset_mask_num; i++) {
+		reg = readl(wdt->base + WDT_RESET_MASK1 + i * 4);
+		writel(reg,
+		       wdt->base + wdt->cfg->sw_reset_mask_offset + i * 4);
+	}
+
+	writel(ctrl, wdt->base + WDT_CTRL);
+	writel(WDT_SW_RESET_COUNT_CLEAR, wdt->base + wdt->cfg->sw_reset_ctrl);
+	writel(WDT_SW_RESET_ENABLE, wdt->base + wdt->cfg->sw_reset_ctrl);
+
+	/* system must be reset immediately */
+	mdelay(1000);
+
+	return 0;
+}
+
+static int aspeed_ast2700_wdt_restart(struct aspeed_wdt *wdt)
+{
+	writel(WDT_SW_RESET_INDICATOR, wdt->base + WDT_SW_FLAGS_CTRL);
+
+	wdt->ctrl = WDT_CTRL_RST_SOC | WDT_CTRL_RESET_SYSTEM;
+	aspeed_wdt_enable(wdt, 128 * WDT_RATE_1MHZ / 1000);
+
+	mdelay(1000);
+
+	return 0;
+}
+
+static int aspeed_wdt_restart(struct watchdog_device *wdd,
+			      unsigned long action, void *data)
+{
+	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
+
+	return wdt->cfg->restart(wdt);
+}
+
+static void aspeed_wdt_update_bootstatus(struct platform_device *pdev,
+					 struct aspeed_wdt *wdt)
+{
+	struct resource *res;
+	struct aspeed_wdt_scu scu = wdt->cfg->scu;
+	struct regmap *scu_base;
+	struct device dev = pdev->dev;
+	u32 reset_mask_width;
+	u32 reset_mask_shift;
+	u32 reg_size;
+	u32 idx = 0;
+	u32 status;
+	int ret;
+
+	if (!of_device_is_compatible(dev.of_node, "aspeed,ast2400-wdt")) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (res) {
+			reg_size = res->end - res->start;
+			if (reg_size) {
+				idx = ((intptr_t)wdt->base & 0x00000fff) /
+				      reg_size;
+			}
+		}
+	}
+
+	scu_base = syscon_regmap_lookup_by_compatible(scu.compatible);
+	if (IS_ERR(scu_base))
+		return;
+
+	ret = regmap_read(scu_base, scu.reset_status_reg, &status);
+	if (ret)
+		return;
+
+	reset_mask_width = hweight32(scu.wdt_reset_mask);
+	reset_mask_shift = scu.wdt_reset_mask_shift +
+			   reset_mask_width * idx;
+
+	if (status & (scu.wdt_sw_reset_mask << reset_mask_shift))
+		wdt->wdd.bootstatus = WDIOF_EXTERN1;
+	else if (status & (scu.wdt_reset_mask << reset_mask_shift))
+		wdt->wdd.bootstatus = WDIOF_CARDRESET;
+
+	if (of_device_is_compatible(dev.of_node, "aspeed,ast2700a0-wdt") ||
+	    of_device_is_compatible(dev.of_node, "aspeed,ast2700-wdt")) {
+		status = readl(wdt->base + WDT_SW_FLAGS_CTRL);
+		if (status & WDT_SW_RESET_INDICATOR) {
+			wdt->wdd.bootstatus = WDIOF_EXTERN1;
+			writel(WDT_SW_FLAGS_CLR, wdt->base + WDT_SW_FLAGS_CTRL);
+		}
+	}
+
+	if (of_device_is_compatible(dev.of_node, "aspeed,ast2400-wdt") ||
+	    of_device_is_compatible(dev.of_node, "aspeed,ast2500-wdt")) {
+		status &= ~(scu.wdt_reset_mask << reset_mask_shift);
+		regmap_write(scu_base, scu.reset_status_reg, status);
+	} else {
+		regmap_write(scu_base, scu.reset_status_reg,
+			     scu.wdt_reset_mask << reset_mask_shift);
+	}
 }
 
 /* access_cs0 shows if cs0 is accessible, hence the reverted bit */
@@ -300,8 +493,10 @@ static irqreturn_t aspeed_wdt_irq(int irq, void *arg)
 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
 	u32 status = readl(wdt->base + WDT_TIMEOUT_STATUS);
 
-	if (status & WDT_TIMEOUT_STATUS_IRQ)
+	if (status & WDT_TIMEOUT_STATUS_IRQ) {
 		watchdog_notify_pretimeout(wdd);
+		writel(0x1, wdt->base + WDT_CLEAR_TIMEOUT_STATUS);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -316,6 +511,7 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 	u32 duration;
 	u32 status;
 	int ret;
+	int i;
 
 	wdt = devm_kzalloc(dev, sizeof(*wdt), GFP_KERNEL);
 	if (!wdt)
@@ -409,8 +605,8 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 
 	if ((of_device_is_compatible(np, "aspeed,ast2500-wdt")) ||
 		(of_device_is_compatible(np, "aspeed,ast2600-wdt"))) {
-		u32 reset_mask[2];
-		size_t nrstmask = of_device_is_compatible(np, "aspeed,ast2600-wdt") ? 2 : 1;
+		u32 reset_mask[6];
+		size_t nrstmask = wdt->cfg->reset_mask_num;
 		u32 reg = readl(wdt->base + WDT_RESET_WIDTH);
 
 		reg &= wdt->cfg->ext_pulse_width_mask;
@@ -431,9 +627,8 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 
 		ret = of_property_read_u32_array(np, "aspeed,reset-mask", reset_mask, nrstmask);
 		if (!ret) {
-			writel(reset_mask[0], wdt->base + WDT_RESET_MASK1);
-			if (nrstmask > 1)
-				writel(reset_mask[1], wdt->base + WDT_RESET_MASK2);
+			for (i = 0; i < nrstmask; i++)
+				writel(reset_mask[i], wdt->base + WDT_RESET_MASK1 + i * 4);
 		}
 	}
 
@@ -463,10 +658,10 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 		writel(duration - 1, wdt->base + WDT_RESET_WIDTH);
 	}
 
+	aspeed_wdt_update_bootstatus(pdev, wdt);
+
 	status = readl(wdt->base + WDT_TIMEOUT_STATUS);
 	if (status & WDT_TIMEOUT_STATUS_BOOT_SECONDARY) {
-		wdt->wdd.bootstatus = WDIOF_CARDRESET;
-
 		if (of_device_is_compatible(np, "aspeed,ast2400-wdt") ||
 		    of_device_is_compatible(np, "aspeed,ast2500-wdt"))
 			wdt->wdd.groups = bswitch_groups;
