@@ -31,6 +31,56 @@
 		groups = "I2C5";
 	};
 
+	pinctrl_ltpi0_i2c6_default: ltpi0_i2c6_default {
+		function = "I2C6";
+		groups = "I2C6";
+	};
+
+	pinctrl_ltpi0_i2c7_default: ltpi0_i2c7_default {
+		function = "I2C7";
+		groups = "I2C7";
+	};
+
+	pinctrl_ltpi0_i2c8_default: ltpi0_i2c8_default {
+		function = "I2C8";
+		groups = "I2C8";
+	};
+
+	pinctrl_ltpi0_i2c9_default: ltpi0_i2c9_default {
+		function = "I2C9";
+		groups = "I2C9";
+	};
+
+	pinctrl_ltpi0_i2c10_default: ltpi0_i2c10_default {
+		function = "I2C10";
+		groups = "I2C10";
+	};
+
+	pinctrl_ltpi0_i2c11_default: ltpi0_i2c11_default {
+		function = "I2C11";
+		groups = "I2C11";
+	};
+
+	pinctrl_ltpi0_i2c12_default: ltpi0_i2c12_default {
+		function = "I2C12";
+		groups = "I2C12";
+	};
+
+	pinctrl_ltpi0_i2c13_default: ltpi0_i2c13_default {
+		function = "I2C13";
+		groups = "I2C13";
+	};
+
+	pinctrl_ltpi0_i2c14_default: ltpi0_i2c14_default {
+		function = "I2C14";
+		groups = "I2C14";
+	};
+
+	pinctrl_ltpi0_i2c15_default: ltpi0_i2c15_default {
+		function = "I2C15";
+		groups = "I2C15";
+	};
+
 	pinctrl_ltpi0_pwm0_default: ltpi0_pwm0_default {
 		function = "PWM0";
 		groups = "PWM0";
