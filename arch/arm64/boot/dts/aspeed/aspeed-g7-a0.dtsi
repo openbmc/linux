@@ -2126,6 +2126,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 0>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c0_default>;
 		status = "disabled";
@@ -2143,6 +2144,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 1>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c1_default>;
 		status = "disabled";
@@ -2160,6 +2162,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 2>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c2_default>;
 		status = "disabled";
@@ -2176,6 +2179,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 3>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c3_default>;
 		status = "disabled";
@@ -2192,6 +2196,7 @@
 		clocks = <&syscon1 SCU1_CLK_APB>;
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		interrupts-extended = <&intc0_2 4>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c4_default>;
@@ -2210,6 +2215,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 5>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c5_default>;
 		status = "disabled";
@@ -2227,6 +2233,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 6>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c6_default>;
 		status = "disabled";
@@ -2244,6 +2251,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 7>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c7_default>;
 		status = "disabled";
@@ -2261,6 +2269,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 8>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c8_default>;
 		status = "disabled";
@@ -2278,6 +2287,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 9>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c9_default>;
 		status = "disabled";
@@ -2295,6 +2305,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 10>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c10_default>;
 		status = "disabled";
@@ -2312,6 +2323,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 11>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c11_default>;
 		status = "disabled";
@@ -2329,6 +2341,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 12>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c12_default>;
 		status = "disabled";
@@ -2346,6 +2359,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 13>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c13_default>;
 		status = "disabled";
@@ -2363,6 +2377,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 14>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c14_default>;
 		status = "disabled";
@@ -2380,6 +2395,7 @@
 		resets = <&syscon1 SCU1_RESET_I2C>;
 		interrupts-extended = <&intc0_2 15>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_i2c15_default>;
 		status = "disabled";
