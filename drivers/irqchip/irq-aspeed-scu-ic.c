@@ -38,15 +38,29 @@
 #define ASPEED_AST2700_SCU_IC0_STS_REG	0x1d4
 #define ASPEED_AST2700_SCU_IC0_SHIFT	0
 #define ASPEED_AST2700_SCU_IC0_ENABLE	\
-	GENMASK(5, ASPEED_AST2700_SCU_IC0_SHIFT)
+	GENMASK(3, ASPEED_AST2700_SCU_IC0_SHIFT)
 #define ASPEED_AST2700_SCU_IC0_NUM_IRQS	4
 
 #define ASPEED_AST2700_SCU_IC1_EN_REG	0x1e0
 #define ASPEED_AST2700_SCU_IC1_STS_REG	0x1e4
 #define ASPEED_AST2700_SCU_IC1_SHIFT	0
 #define ASPEED_AST2700_SCU_IC1_ENABLE	\
-	GENMASK(5, ASPEED_AST2700_SCU_IC1_SHIFT)
+	GENMASK(3, ASPEED_AST2700_SCU_IC1_SHIFT)
 #define ASPEED_AST2700_SCU_IC1_NUM_IRQS	4
+
+#define ASPEED_AST2700_SCU_IC2_EN_REG	0x104
+#define ASPEED_AST2700_SCU_IC2_STS_REG	0x100
+#define ASPEED_AST2700_SCU_IC2_SHIFT	0
+#define ASPEED_AST2700_SCU_IC2_ENABLE	\
+	GENMASK(3, ASPEED_AST2700_SCU_IC2_SHIFT)
+#define ASPEED_AST2700_SCU_IC2_NUM_IRQS	4
+
+#define ASPEED_AST2700_SCU_IC3_EN_REG	0x10c
+#define ASPEED_AST2700_SCU_IC3_STS_REG	0x108
+#define ASPEED_AST2700_SCU_IC3_SHIFT	0
+#define ASPEED_AST2700_SCU_IC3_ENABLE	\
+	GENMASK(1, ASPEED_AST2700_SCU_IC3_SHIFT)
+#define ASPEED_AST2700_SCU_IC3_NUM_IRQS	2
 
 struct aspeed_scu_ic {
 	unsigned long irq_enable;
@@ -69,11 +83,12 @@ static void aspeed_scu_ic_irq_handler(struct irq_desc *desc)
 	unsigned long status;
 	struct aspeed_scu_ic *scu_ic = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
-	unsigned int mask = scu_ic->irq_enable << ASPEED_SCU_IC_STATUS_SHIFT;
+	unsigned int mask;
 
 	chained_irq_enter(chip, desc);
 
 	if (!scu_ic->en_sts_split) {
+		mask = scu_ic->irq_enable << ASPEED_SCU_IC_STATUS_SHIFT;
 		/*
 		 * The SCU IC has just one register to control its operation and read
 		 * status. The interrupt enable bits occupy the lower 16 bits of the
@@ -99,6 +114,7 @@ static void aspeed_scu_ic_irq_handler(struct irq_desc *desc)
 					  BIT(bit + ASPEED_SCU_IC_STATUS_SHIFT));
 		}
 	} else {
+		mask = scu_ic->irq_enable;
 		regmap_read(scu_ic->scu, scu_ic->en_reg, &val);
 		enabled = val & scu_ic->irq_enable;
 		regmap_read(scu_ic->scu, scu_ic->sts_reg, &val);
@@ -120,8 +136,7 @@ static void aspeed_scu_ic_irq_handler(struct irq_desc *desc)
 static void aspeed_scu_ic_irq_mask(struct irq_data *data)
 {
 	struct aspeed_scu_ic *scu_ic = irq_data_get_irq_chip_data(data);
-	unsigned int mask = BIT(data->hwirq + scu_ic->irq_shift) |
-		(scu_ic->irq_enable << ASPEED_SCU_IC_STATUS_SHIFT);
+	unsigned int mask;
 
 	if (!scu_ic->en_sts_split) {
 		mask = BIT(data->hwirq + scu_ic->irq_shift) |
@@ -201,8 +216,19 @@ static int aspeed_scu_ic_of_init_common(struct aspeed_scu_ic *scu_ic,
 		rc = PTR_ERR(scu_ic->scu);
 		goto err;
 	}
-	regmap_write_bits(scu_ic->scu, scu_ic->reg, ASPEED_SCU_IC_STATUS, ASPEED_SCU_IC_STATUS);
-	regmap_write_bits(scu_ic->scu, scu_ic->reg, ASPEED_SCU_IC_ENABLE, 0);
+
+	/* Clear status and disable all interrupt */
+	if (!scu_ic->en_sts_split) {
+		regmap_write_bits(scu_ic->scu, scu_ic->reg,
+				  ASPEED_SCU_IC_STATUS, ASPEED_SCU_IC_STATUS);
+		regmap_write_bits(scu_ic->scu, scu_ic->reg,
+				  ASPEED_SCU_IC_ENABLE, 0);
+	} else {
+		regmap_write_bits(scu_ic->scu, scu_ic->sts_reg,
+				  scu_ic->irq_enable, scu_ic->irq_enable);
+		regmap_write_bits(scu_ic->scu, scu_ic->en_reg,
+				  scu_ic->irq_enable, 0);
+	}
 
 	irq = irq_of_parse_and_map(node, 0);
 	if (!irq) {
@@ -313,6 +339,42 @@ static int __init aspeed_ast2700_scu_ic1_of_init(struct device_node *node,
 	return aspeed_scu_ic_of_init_common(scu_ic, node);
 }
 
+static int __init aspeed_ast2700_scu_ic2_of_init(struct device_node *node,
+						 struct device_node *parent)
+{
+	struct aspeed_scu_ic *scu_ic = kzalloc(sizeof(*scu_ic), GFP_KERNEL);
+
+	if (!scu_ic)
+		return -ENOMEM;
+
+	scu_ic->irq_enable = ASPEED_AST2700_SCU_IC2_ENABLE;
+	scu_ic->irq_shift = ASPEED_AST2700_SCU_IC2_SHIFT;
+	scu_ic->num_irqs = ASPEED_AST2700_SCU_IC2_NUM_IRQS;
+	scu_ic->en_sts_split = true;
+	scu_ic->en_reg = ASPEED_AST2700_SCU_IC2_EN_REG;
+	scu_ic->sts_reg = ASPEED_AST2700_SCU_IC2_STS_REG;
+
+	return aspeed_scu_ic_of_init_common(scu_ic, node);
+}
+
+static int __init aspeed_ast2700_scu_ic3_of_init(struct device_node *node,
+						 struct device_node *parent)
+{
+	struct aspeed_scu_ic *scu_ic = kzalloc(sizeof(*scu_ic), GFP_KERNEL);
+
+	if (!scu_ic)
+		return -ENOMEM;
+
+	scu_ic->irq_enable = ASPEED_AST2700_SCU_IC3_ENABLE;
+	scu_ic->irq_shift = ASPEED_AST2700_SCU_IC3_SHIFT;
+	scu_ic->num_irqs = ASPEED_AST2700_SCU_IC3_NUM_IRQS;
+	scu_ic->en_sts_split = true;
+	scu_ic->en_reg = ASPEED_AST2700_SCU_IC3_EN_REG;
+	scu_ic->sts_reg = ASPEED_AST2700_SCU_IC3_STS_REG;
+
+	return aspeed_scu_ic_of_init_common(scu_ic, node);
+}
+
 IRQCHIP_DECLARE(ast2400_scu_ic, "aspeed,ast2400-scu-ic", aspeed_scu_ic_of_init);
 IRQCHIP_DECLARE(ast2500_scu_ic, "aspeed,ast2500-scu-ic", aspeed_scu_ic_of_init);
 IRQCHIP_DECLARE(ast2600_scu_ic0, "aspeed,ast2600-scu-ic0",
@@ -323,3 +385,7 @@ IRQCHIP_DECLARE(ast2700_scu_ic0, "aspeed,ast2700-scu-ic0",
 		aspeed_ast2700_scu_ic0_of_init);
 IRQCHIP_DECLARE(ast2700_scu_ic1, "aspeed,ast2700-scu-ic1",
 		aspeed_ast2700_scu_ic1_of_init);
+IRQCHIP_DECLARE(ast2700_scu_ic2, "aspeed,ast2700-scu-ic2",
+		aspeed_ast2700_scu_ic2_of_init);
+IRQCHIP_DECLARE(ast2700_scu_ic3, "aspeed,ast2700-scu-ic3",
+		aspeed_ast2700_scu_ic3_of_init);
