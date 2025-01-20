@@ -2718,7 +2718,7 @@
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_di2c13_default>;
+		pinctrl-0 = <&pinctrl_i2c13_default>;
 		status = "disabled";
 	};
 
