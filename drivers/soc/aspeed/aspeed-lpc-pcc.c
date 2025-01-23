@@ -22,6 +22,9 @@
 
 static DEFINE_IDA(aspeed_pcc_ida);
 
+#define HICR6	0x084
+#define   HICR6_EN2BMODE		BIT(19)
+#define SNPWADR	0x090
 #define PCCR6	0x0c4
 #define   PCCR6_DMA_CUR_ADDR		GENMASK(27, 0)
 #define PCCR4	0x0d0
@@ -32,6 +35,9 @@ static DEFINE_IDA(aspeed_pcc_ida);
 #define   PCCR5_DMA_ADDRH_SHIFT		24
 #define   PCCR5_DMA_LEN_MASK		GENMASK(23, 0)
 #define   PCCR5_DMA_LEN_SHIFT		0
+#define HICRB	0x100
+#define   HICRB_ENSNP0D			BIT(14)
+#define   HICRB_ENSNP1D			BIT(15)
 #define PCCR0	0x130
 #define   PCCR0_EN_DMA_INT		BIT(31)
 #define   PCCR0_EN_DMA_MODE		BIT(14)
@@ -51,10 +57,13 @@ static DEFINE_IDA(aspeed_pcc_ida);
 #define   PCCR1_DONT_CARE_BITS_MASK	GENMASK(21, 16)
 #define   PCCR1_DONT_CARE_BITS_SHIFT	16
 #define PCCR2	0x138
-#define   PCCR2_DMA_DONE		BIT(4)
-#define   PCCR2_DATA_RDY		PCCR2_DMA_DONE
-#define   PCCR2_RX_TMOUT_INT		BIT(2)
-#define   PCCR2_RX_AVAIL_INT		BIT(1)
+#define   PCCR2_INT_STATUS_PATTERN_B	BIT(16)
+#define   PCCR2_INT_STATUS_PATTERN_A	BIT(8)
+#define   PCCR2_INT_STATUS_DMA_DONE	BIT(4)
+#define   PCCR2_INT_STATUS_DATA_RDY	PCCR2_INT_STATUS_DMA_DONE
+#define   PCCR2_INT_STATUS_RX_OVER	BIT(3)
+#define   PCCR2_INT_STATUS_RX_TMOUT	BIT(2)
+#define   PCCR2_INT_STATUS_RX_AVAIL	BIT(1)
 #define PCCR3	0x13c
 #define   PCCR3_FIFO_DATA_MASK		GENMASK(7, 0)
 
@@ -169,10 +178,9 @@ static irqreturn_t aspeed_pcc_dma_isr(int irq, void *arg)
 	struct aspeed_pcc *pcc = (struct aspeed_pcc*)arg;
 	struct kfifo *fifo = &pcc->fifo;
 
+	regmap_write_bits(pcc->regmap, PCCR2, PCCR2_INT_STATUS_DMA_DONE, PCCR2_INT_STATUS_DMA_DONE);
+
 	regmap_read(pcc->regmap, PCCR6, &reg);
-
-	regmap_write_bits(pcc->regmap, PCCR2, PCCR2_DMA_DONE, PCCR2_DMA_DONE);
-
 	wptr = (reg & PCCR6_DMA_CUR_ADDR) - (pcc->dma.addr & PCCR6_DMA_CUR_ADDR);
 	rptr = pcc->dma.rptr;
 
@@ -200,13 +208,13 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
 
 	regmap_read(pcc->regmap, PCCR2, &sts);
 
-	if (!(sts & (PCCR2_RX_TMOUT_INT | PCCR2_RX_AVAIL_INT | PCCR2_DMA_DONE)))
+	if (!(sts & (PCCR2_INT_STATUS_RX_TMOUT | PCCR2_INT_STATUS_RX_AVAIL | PCCR2_INT_STATUS_DMA_DONE)))
 		return IRQ_NONE;
 
 	if (pcc->dma_mode)
 		return aspeed_pcc_dma_isr(irq, arg);
 
-	while (sts & PCCR2_DATA_RDY) {
+	while (sts & PCCR2_INT_STATUS_DATA_RDY) {
 		regmap_read(pcc->regmap, PCCR3, &reg);
 
 		if (kfifo_is_full(fifo))
@@ -229,15 +237,13 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
  * eSPI response when PCC is used for port I/O byte snooping
  * over eSPI.
  */
-#define SNPWADR	0x90
-#define HICR6	0x84
-#define HICRB	0x100
 static int aspeed_a2600_15(struct aspeed_pcc *pcc, struct device *dev)
 {
 	struct device_node *np;
+	u32 hicrb_en;
 
 	/* abort if snoop is enabled */
-	np = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-lpc-snoop");
+	np = of_find_compatible_node(dev->parent->of_node, NULL, "aspeed,ast2600-lpc-snoop");
 	if (np) {
 		if (of_device_is_available(np)) {
 			dev_err(dev, "A2600-15 should be applied with snoop disabled\n");
@@ -255,11 +261,11 @@ static int aspeed_a2600_15(struct aspeed_pcc *pcc, struct device *dev)
 	regmap_write(pcc->regmap, SNPWADR, pcc->port | ((pcc->port + 2) << 16));
 
 	/* set HICRB[15:14]=11b to enable ACCEPT response for SNPWADR */
-	regmap_update_bits(pcc->regmap, HICRB, BIT(14) | BIT(15),
-			   BIT(14) | BIT(15));
+	hicrb_en = HICRB_ENSNP0D | HICRB_ENSNP1D;
+	regmap_update_bits(pcc->regmap, HICRB, hicrb_en, hicrb_en);
 
 	/* set HICR6[19] to extend SNPWADR to 2x range */
-	regmap_update_bits(pcc->regmap, HICR6, BIT(19), BIT(19));
+	regmap_update_bits(pcc->regmap, HICR6, HICR6_EN2BMODE, HICR6_EN2BMODE);
 
 	return 0;
 }
@@ -329,22 +335,6 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pcc->dev = dev;
-
-	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	if (rc) {
-		dev_err(dev, "cannot set 64-bits DMA mask\n");
-		return rc;
-	}
-
-	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
-	if (IS_ERR(pcc->regmap)) {
-		dev_err(dev, "cannot map register\n");
-		return -ENODEV;
-	}
-
-	/* disable PCC for safety */
-	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN, 0);
-
 	rc = of_property_read_u32(dev->of_node, "port-addr", &pcc->port);
 	if (rc) {
 		dev_err(dev, "cannot get port address\n");
@@ -382,6 +372,17 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	else
 		pcc->port_hbits_select = 0x3;
 
+	/* AP note A2600-15 */
+	pcc->a2600_15 = of_property_read_bool(dev->of_node, "A2600-15");
+	if (pcc->a2600_15)
+		dev_info(dev, "A2600-15 AP note patch is selected\n");
+
+	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	if (rc) {
+		dev_err(dev, "cannot set 64-bits DMA mask\n");
+		return rc;
+	}
+
 	pcc->dma_mode = of_property_read_bool(dev->of_node, "dma-mode");
 	if (pcc->dma_mode) {
 		pcc->dma.size = PCC_DMA_BUFSZ;
@@ -403,10 +404,22 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	/* AP note A2600-15 */
-	pcc->a2600_15 = of_property_read_bool(dev->of_node, "A2600-15");
-	if (pcc->a2600_15)
-		dev_info(dev, "A2600-15 AP note patch is selected\n");
+	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
+	if (IS_ERR(pcc->regmap)) {
+		dev_err(dev, "cannot map register\n");
+		return -ENODEV;
+	}
+
+	/* Disable PCC and DMA Mode for safety */
+	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN |  PCCR0_EN_DMA_MODE, 0);
+
+	/* Clear Rx FIFO. */
+	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_CLR_RX_FIFO, 1);
+
+	/* Clear All interrupts status. */
+	regmap_write(pcc->regmap, PCCR2,
+		     PCCR2_INT_STATUS_RX_OVER | PCCR2_INT_STATUS_DMA_DONE |
+		     PCCR2_INT_STATUS_PATTERN_A | PCCR2_INT_STATUS_PATTERN_B);
 
 	pcc->irq = platform_get_irq(pdev, 0);
 	if (pcc->irq < 0) {
@@ -429,9 +442,10 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return pcc->mdev_id;
 	}
 
+	pcc->mdev.parent = dev;
+	pcc->mdev.minor = MISC_DYNAMIC_MINOR;
 	pcc->mdev.name = devm_kasprintf(dev, GFP_KERNEL, "%s%d", DEVICE_NAME,
 					pcc->mdev_id);
-	pcc->mdev.parent = dev;
 	pcc->mdev.fops = &pcc_fops;
 	rc = misc_register(&pcc->mdev);
 	if (rc) {
@@ -474,7 +488,6 @@ static int aspeed_pcc_remove(struct platform_device *pdev)
 static const struct of_device_id aspeed_pcc_table[] = {
 	{ .compatible = "aspeed,ast2500-lpc-pcc" },
 	{ .compatible = "aspeed,ast2600-lpc-pcc" },
-	{ .compatible = "aspeed,ast2700-lpc-pcc" },
 	{ },
 };
 
