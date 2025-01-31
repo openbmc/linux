@@ -13,3 +13,14 @@ config APML_SBRMI
 
       This driver can also be built as a module. If so, the module will
       be called apml_sbrmi.
+
+config APML_SBTSI
+    tristate "Emulated SB-TSI interface driver over i3c bus"
+    depends on I3C && !SENSORS_SBTSI
+    select REGMAP_I3C if I3C
+    help
+      If you say yes here you get support for emulated TSI
+      interface on AMD SoCs with APML interface connected to a BMC device.
+
+      This driver can also be built as a module. If so, the module will
+      be called apml_sbtsi.
