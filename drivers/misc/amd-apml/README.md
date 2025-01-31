@@ -1,5 +1,5 @@
 .. SPDX-License-Identifier: GPL-2.0
-# amd apml modules (apml_sbrmi)
+# amd apml modules (apml_sbtsi, apml_sbrmi)
 
 amd-apml: APML interface drivers for BMC
 
@@ -14,7 +14,7 @@ This chapter defines custom protocols over i2c/i3c bus
   - MCA MSR {RO]
   - RMI/TSI register [RW]
 
-module_i2c_i3c based sbrmi modules, which
+module_i2c_i3c based sbrmi and sbtsi modules, which
 are probed as i2c or i3c client devices, depending on the
 platforms DTS.
 
@@ -37,9 +37,12 @@ AMD Family 19h Model (0h ~ 1Fh & 30h ~ 3Fh) server line of processors.
 Interface
 ---------
 
-The apml_sbrmi modules register a misc_device
+Both apml_sbtsi and apml_sbrmi modules register a misc_device
 to provide ioctl interface to user space, allowing them
 to run these custom protocols.
+
+apml_sbtsi module registers hwmon sensors for monitoring
+current temperature, managing max and min thresholds.
 
 apml_sbrmi module registers hwmon sensors for monitoring
 power_cap_max, current power consumption and managing
@@ -81,4 +84,4 @@ Loading
 If the apml modules were installed you should use the modprobe command to
 load the module.
 
-#> sudo modprobe apml_sbrmi
+#> sudo modprobe apml_sbrmi apml_sbtsi
