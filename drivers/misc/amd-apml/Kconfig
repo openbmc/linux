@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# AMD APML BMC interface drivers
+#
+
+config APML_SBRMI
+    tristate "Emulated SB-RMI interface driver over i3c bus"
+    depends on I3C && !SENSORS_SBRMI
+    select REGMAP_I3C if I3C
+    help
+      If you say yes here you get support for emulated RMI
+      interface on AMD SoCs with APML interface connected to a BMC device.
+
+      This driver can also be built as a module. If so, the module will
+      be called apml_sbrmi.
