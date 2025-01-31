@@ -5,3 +5,4 @@
 #
 
 obj-$(CONFIG_APML_SBRMI)	+= sbrmi.o sbrmi-common.o
+obj-$(CONFIG_APML_SBTSI)	+= apml_sbtsi.o
