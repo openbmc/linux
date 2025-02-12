@@ -96,7 +96,8 @@
 		i2c133 = &p1_clk;
 		i2c134 = &p1_vr;
 		i2c135 = &p1_sec;
-		i2c203 = &fan_board;
+		i2c203 = &fan_board0;
+		i2c204 = &fan_board1;
 	};
 };
 
@@ -206,7 +207,27 @@
 		reg = <0x70>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		fan_board: i2c@2 {
+		fan_board0: i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			nct7363@20 {
+				compatible = "nuvoton,nct7363";
+				reg = <0x20>;
+			};
+			nct7363@21 {
+				compatible = "nuvoton,nct7363";
+				reg = <0x21>;
+			};
+		};
+	};
+
+	i2cswitch@72 {
+		compatible = "nxp,pca9548";
+		reg = <0x72>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		fan_board1: i2c@2 {
 			reg = <2>;
 			#address-cells = <1>;
 			#size-cells = <0>;
