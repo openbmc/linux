@@ -103,8 +103,7 @@ static int hci_dat_v1_alloc_entry(struct i3c_hci *hci, unsigned int address)
 	__set_bit(dat_idx, hci->DAT_data);
 
 	/* default flags */
-	dat_w0_write(dat_idx,
-		DAT_0_DEV_NACK_RETRY_CNT | DAT_0_SIR_REJECT | DAT_0_MR_REJECT);
+	dat_w0_write(dat_idx, DAT_0_SIR_REJECT | DAT_0_MR_REJECT);
 
 	return dat_idx;
 }
@@ -146,10 +145,9 @@ static void hci_dat_v1_set_dynamic_addr(struct i3c_hci *hci,
 		int ret;
 
 		ret = hci_dat_v1_alloc_entry(hci, address);
-		if (ret < 0) {
+		if (ret < 0)
 			dev_err(&hci->master.dev, "Allocate entry: %d", ret);
-			hci_dat_v1_free_entry(hci, dat_idx);
-		}
+		hci_dat_v1_free_entry(hci, dat_idx);
 	}
 #else
 	u32 dat_w0;

@@ -66,7 +66,6 @@ EXPORT_SYMBOL_GPL(i3c_device_do_priv_xfers);
 int i3c_device_send_hdr_cmds(struct i3c_device *dev, struct i3c_hdr_cmd *cmds,
 			     int ncmds)
 {
-	struct i3c_master_controller *master;
 	enum i3c_hdr_mode mode;
 	int ret, i;
 
@@ -79,16 +78,9 @@ int i3c_device_send_hdr_cmds(struct i3c_device *dev, struct i3c_hdr_cmd *cmds,
 			return -EINVAL;
 	}
 
-	master = i3c_dev_get_master(dev->desc);
-	if (!master)
-		return -EINVAL;
-
-	i3c_bus_normaluse_lock(&master->bus);
-	for (i = 0; i < ncmds; i++)
-		cmds[i].addr = dev->desc->info.dyn_addr;
-
-	ret = i3c_master_send_hdr_cmds_locked(master, cmds, ncmds);
-	i3c_bus_normaluse_unlock(&master->bus);
+	i3c_bus_normaluse_lock(dev->bus);
+	ret = i3c_dev_send_hdr_cmds_locked(dev->desc, cmds, ncmds);
+	i3c_bus_normaluse_unlock(dev->bus);
 
 	return ret;
 }
@@ -206,8 +198,9 @@ int i3c_device_getstatus_ccc(struct i3c_device *dev, struct i3c_device_info *inf
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (dev->desc)
-		ret = i3c_dev_getstatus_locked(dev->desc, info);
+		ret = i3c_dev_getstatus_locked(dev->desc, &dev->desc->info);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -454,6 +447,20 @@ int i3c_device_control_pec(struct i3c_device *dev, bool pec)
 EXPORT_SYMBOL_GPL(i3c_device_control_pec);
 
 /**
+ * i3c_device_register_event_cb() - register callback for I3C framework event.
+ * @dev: the I3C device driver handle.
+ * @ev: I3C framework event callback
+ *
+ * This function allows I3C device driver to register for I3C framework events.
+ * Provided callback will be used by controller driver to publish events.
+ */
+void i3c_device_register_event_cb(struct i3c_device *dev, i3c_event_cb event_cb)
+{
+	dev->desc->event_cb = event_cb;
+}
+EXPORT_SYMBOL_GPL(i3c_device_register_event_cb);
+
+/**
  * i3c_device_setmrl_ccc() - set maximum read length
  *
  * @dev: I3C device to set the length for
@@ -473,8 +480,9 @@ int i3c_device_setmrl_ccc(struct i3c_device *dev, struct i3c_device_info *info, 
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_setmrl_locked(master, info, read_len, ibi_len);
+		ret = i3c_master_setmrl_locked(master, &dev->desc->info, read_len, ibi_len);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -498,8 +506,9 @@ int i3c_device_setmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info, 
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_setmwl_locked(master, info, write_len);
+		ret = i3c_master_setmwl_locked(master, &dev->desc->info, write_len);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -522,8 +531,9 @@ int i3c_device_getmrl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_getmrl_locked(master, info);
+		ret = i3c_master_getmrl_locked(master, &dev->desc->info);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -546,8 +556,9 @@ int i3c_device_getmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_getmwl_locked(master, info);
+		ret = i3c_master_getmwl_locked(master, &dev->desc->info);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -566,6 +577,32 @@ int i3c_device_setaasa_ccc(struct i3c_device *dev)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(i3c_device_setaasa_ccc);
+/**
+ * i3c_device_dbgaction_wr_ccc() - I3C for Debug action write CCC
+ *
+ * @dev: I3C device to initiate the Debug Action write
+ * @info: I3C device info to capture target system details
+ * @data: data bytes for the debug action
+ * @len: length of the data bytes
+ *
+ * Initiate a particular debug action within the target system
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_dbgaction_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_dbgaction_wr_locked(dev->desc, info, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_dbgaction_wr_ccc);
+
 
 int i3c_device_sethid_ccc(struct i3c_device *dev)
 {
@@ -580,3 +617,55 @@ int i3c_device_sethid_ccc(struct i3c_device *dev)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(i3c_device_sethid_ccc);
+
+/**
+ * i3c_device_dbgopcode_wr_ccc() - I3C for Debug opcode CCC
+ *
+ * @dev: I3C device to initiate the Debug Opcode write
+ * @info: I3C device info to capture target system details
+ * @data: data bytes for the debug opcode
+ * @len: length of the data bytes
+ *
+ * Request a particular operation of the network adaptor of the target system
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_dbgopcode_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_dbgopcode_wr_locked(dev->desc, info, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_dbgopcode_wr_ccc);
+
+/**
+ * i3c_device_dbgopcode_rd_ccc() - I3C for Debug opcode CCC
+ *
+ * @dev: I3C device to initiate the Debug Opcode read
+ * @info: I3C device info to capture target system details
+ * @data: data bytes for the debug opcode
+ * @len: length of the data bytes
+ *
+ * Request a particular operation of the network adaptor of the target system
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_dbgopcode_rd_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_dbgopcode_rd_locked(dev->desc, info, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_dbgopcode_rd_ccc);

@@ -15,8 +15,6 @@
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
 
-extern struct bus_type i3c_bus_type;
-
 /**
  * enum i3c_error_code - I3C error codes
  *
@@ -58,7 +56,6 @@ enum i3c_hdr_mode {
  * struct i3c_hdr_cmd - I3C HDR command
  * @mode: HDR mode selected for this command
  * @code: command opcode
- * @addr: I3C dynamic address
  * @ndatawords: number of data words (a word is 16bits wide)
  * @data: input/output buffer
  * @err: I3C error code
@@ -66,7 +63,6 @@ enum i3c_hdr_mode {
 struct i3c_hdr_cmd {
 	enum i3c_hdr_mode mode;
 	u8 code;
-	u8 addr;
 	int ndatawords;
 	union {
 		void *in;
@@ -79,6 +75,7 @@ struct i3c_hdr_cmd {
  * struct i3c_priv_xfer - I3C SDR private transfer
  * @rnw: encodes the transfer direction. true for a read, false for a write
  * @len: transfer length in bytes of the transfer
+ * @actual_len: actual length in bytes are transferred by the controller
  * @data: input/output buffer
  * @data.in: input buffer. Must point to a DMA-able buffer
  * @data.out: output buffer. Must point to a DMA-able buffer
@@ -87,6 +84,7 @@ struct i3c_hdr_cmd {
 struct i3c_priv_xfer {
 	u8 rnw;
 	u16 len;
+	u16 actual_len;
 	union {
 		void *in;
 		const void *out;
@@ -404,6 +402,13 @@ int i3c_device_getmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info);
 int i3c_device_setaasa_ccc(struct i3c_device *dev);
 int i3c_device_sethid_ccc(struct i3c_device *dev);
 
+int i3c_device_dbgaction_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+int i3c_device_dbgopcode_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+int i3c_device_dbgopcode_rd_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+
 struct i3c_target_read_setup {
 	void (*handler)(struct i3c_device *dev, const u8 *data, size_t len);
 };
@@ -411,5 +416,26 @@ struct i3c_target_read_setup {
 int i3c_target_read_register(struct i3c_device *dev, const struct i3c_target_read_setup *setup);
 
 int i3c_device_control_pec(struct i3c_device *dev, bool pec);
+
+/**
+ * enum i3c_event - List of possible events could be send/published to
+ *		    registered devices.
+ * @i3c_event_prepare_for_rescan: Event send when controller driver is going to
+ *				  run bus discovery again.
+ * @i3c_event_rescan_done: Event send when controller driver run bus discovery
+ *			   again.
+ */
+enum i3c_event {
+	i3c_event_prepare_for_rescan = 0,
+	i3c_event_rescan_done,
+};
+
+/**
+ * i3c_event_cb - callback registered by device driver and used by controller
+ *		  driver to publish event.
+ */
+typedef void (*i3c_event_cb)(struct i3c_device *dev, enum i3c_event event);
+
+void i3c_device_register_event_cb(struct i3c_device *dev, i3c_event_cb cb);
 
 #endif /* I3C_DEV_H */

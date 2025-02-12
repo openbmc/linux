@@ -11,7 +11,6 @@
 #include <linux/device.h>
 #include <linux/errno.h>
 #include <linux/clk.h>
-#include <linux/moduleparam.h>
 #include <linux/reset.h>
 #include <linux/i3c/master.h>
 #include <linux/i3c/target.h>
@@ -126,10 +125,6 @@
 
 #ifdef CONFIG_ARCH_ASPEED
 
-static bool i3c_device_power = false;
-module_param(i3c_device_power, bool, 0644);
-MODULE_PARM_DESC(i3c_device_power, "I3C device power status");
-
 static u32 aspeed_i3c_get_sdr_phy_reg(struct i3c_hci *hci)
 {
 	struct i3c_bus *bus = i3c_master_get_bus(&hci->master);
@@ -191,7 +186,7 @@ static void aspeed_i3c_phy_init(struct i3c_hci *hci)
 
 static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device_node *np)
 {
-	u16 hcnt, lcnt;
+	u16 hcnt, lcnt, total_cnt, min_tbit_cnt;
 	unsigned long core_rate, core_period;
 	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
 	u32 ctrl0, ctrl1, ctrl2;
@@ -200,17 +195,11 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	core_rate = clk_get_rate(hci->clk);
 	/* core_period is in nanosecond */
 	core_period = DIV_ROUND_UP(1000000000, core_rate);
-
-	/* Workaround . Need to remove once hardware support is available
-	   for internal LDO powerup support is available. Check for the JESD403
-	   compliance is added to avoid changing the frequency for the i3c buses
-	   like APML on which there are no i3c hub devices. This check can be
-	   removed when hardware support is available for internal LDO powerup.
+	/*
+	 * The T-bits margin in our I3C controller is too tight to be set at 12.5MHz.
+	 * Set it to a minimum of 60ns to ensure proper functionality.
 	 */
-	if (!i3c_device_power && hci->master.bus.context == I3C_BUS_CONTEXT_JESD403) {
-		hci->master.bus.scl_rate.i3c = 1000000;
-		dev_info(&hci->master.dev, "Updated clock to 1Mhz");
-	}
+	min_tbit_cnt = DIV_ROUND_UP(60, core_period) - 1;
 
 	dev_info(&hci->master.dev, "core rate = %ld core period = %ld ns", core_rate, core_period);
 
@@ -237,11 +226,13 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 		hcnt = DIV_ROUND_CLOSEST(pp_high, core_period) - 1;
 		lcnt = DIV_ROUND_CLOSEST(pp_low, core_period) - 1;
 	} else if (hci->master.bus.mode == I3C_BUS_MODE_PURE) {
-		hcnt = (DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) >> 1) - 1;
-		lcnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - hcnt;
+		total_cnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - 2;
+		hcnt = DIV_ROUND_DOWN_ULL(total_cnt * 2, 5);
+		lcnt = (total_cnt - hcnt);
 	} else {
+		total_cnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - 2;
 		hcnt = DIV_ROUND_UP(I3C_BUS_THIGH_MAX_NS, core_period) - 1;
-		lcnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - hcnt;
+		lcnt = (total_cnt - hcnt);
 	}
 	ctrl0 = FIELD_PREP(PHY_I3C_SDR0_CTRL0_SCL_H, hcnt) |
 		FIELD_PREP(PHY_I3C_SDR0_CTRL0_SCL_L, lcnt);
@@ -249,8 +240,8 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	/* Address assign command(ENTDAA) will always use SDR0 setting */
 	ast_phy_write(PHY_I3C_SDR0_CTRL0, ctrl0);
 	ast_phy_write(PHY_I3C_DDR_CTRL0, ctrl0);
-	ctrl1 = FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_H, hcnt) |
-		FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_L, lcnt);
+	ctrl1 = FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_H, max(hcnt, min_tbit_cnt)) |
+		FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_L, max(lcnt, min_tbit_cnt));
 	ast_phy_write(sdr_ctrl0_reg + PHY_I3C_CTRL1_OFFSET, ctrl1);
 	ast_phy_write(PHY_I3C_SDR0_CTRL1, ctrl1);
 	ast_phy_write(PHY_I3C_DDR_CTRL1, ctrl1);
@@ -361,11 +352,7 @@ static void i3c_hci_bus_cleanup(struct i3c_master_controller *m)
 	struct platform_device *pdev = to_platform_device(m->dev.parent);
 
 	DBG("");
-#ifdef CONFIG_ARCH_ASPEED
-	if (hci->EXTCAPS_regs == hci->INHOUSE_regs)
-		/* Reset the inhouse register back to default */
-		ast_inhouse_write(ASPEED_I3C_CTRL, 0x2400);
-#endif
+
 	reg_clear(HC_CONTROL, HC_CONTROL_BUS_ENABLE);
 	synchronize_irq(platform_get_irq(pdev, 0));
 	hci->io->cleanup(hci);
@@ -474,18 +461,6 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	DBG("cmd=%#x rnw=%d dbp=%d db=%#x ndests=%d data[0].len=%d", ccc->id,
 	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
 	    ccc->dests[0].payload.len);
-
-	/*
-	 * Driver should be able to send the CCC commands on the i3c buses like the
-	 * APML/I3C bus on which there is no i3chub device. Following check for
-	 * JESD403 is added so that the driver will not skip sending the CCC commands.
-	 * Once the support of LDO internal powerup from the hardware, the check for
-	 * JESD403 can be removed.
-	 */
-	if (!i3c_device_power && m->bus.context == I3C_BUS_CONTEXT_JESD403) {
-		 dev_info(&hci->master.dev,"User requested to skip CCC commands \n");
-		 return 0;
-	}
 
 	xfer = hci_alloc_xfer(nxfers);
 	if (!xfer)
@@ -620,9 +595,10 @@ out:
 	return ret;
 }
 
-static int i3c_hci_send_hdr_cmds(struct i3c_master_controller *m,
+static int i3c_hci_send_hdr_cmds(struct i3c_dev_desc *dev,
 				 struct i3c_hdr_cmd *cmds, int ncmds)
 {
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct i3c_hci *hci = to_i3c_hci(m);
 	struct hci_xfer *xfer;
 	DECLARE_COMPLETION_ONSTACK(done);
@@ -652,8 +628,7 @@ static int i3c_hci_send_hdr_cmds(struct i3c_master_controller *m,
 			xfer[i].data = cmds[i].data.in;
 		else
 			xfer[i].data = (void *)cmds[i].data.out;
-		hci->cmd->prep_hdr(hci, xfer, cmds[i].addr, cmds[i].code,
-				   cmds[i].mode);
+		hci->cmd->prep_hdr(hci, xfer, dev->info.dyn_addr, cmds[i].code, cmds[i].mode);
 
 		xfer[i].cmd_desc[0] |= CMD_0_ROC;
 	}
@@ -748,8 +723,7 @@ static int i3c_hci_attach_i3c_dev(struct i3c_dev_desc *dev)
 	if (hci->cmd == &mipi_i3c_hci_cmd_v1) {
 #ifdef CONFIG_ARCH_ASPEED
 		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci,
-			dev->info.dyn_addr ?
-			dev->info.dyn_addr : dev->info.static_addr);
+						      dev->info.dyn_addr ?: dev->info.static_addr);
 #else
 		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci);
 #endif
@@ -758,8 +732,7 @@ static int i3c_hci_attach_i3c_dev(struct i3c_dev_desc *dev)
 			return ret;
 		}
 		mipi_i3c_hci_dat_v1.set_dynamic_addr(hci, ret,
-			dev->info.dyn_addr ?
-			dev->info.dyn_addr : dev->info.static_addr);
+						     dev->info.dyn_addr ?: dev->info.static_addr);
 		dev_data->dat_idx = ret;
 	}
 	i3c_dev_set_master_data(dev, dev_data);
@@ -968,6 +941,9 @@ static int ast2700_i3c_target_bus_init(struct i3c_master_controller *m)
 	if (ret)
 		return ret;
 
+	reg_set(HC_CONTROL, HC_CONTROL_BUS_ENABLE);
+	DBG("HC_CONTROL = %#x", reg_read(HC_CONTROL));
+
 	return 0;
 }
 
@@ -1021,6 +997,30 @@ ast2700_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
 	}
 
 	return xfer;
+}
+
+int ast2700_i3c_target_put_rdata(struct i3c_dev_desc *dev,
+				 struct i3c_priv_xfer *i3c_xfers, int nxfers)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct i3c_hci *hci = to_i3c_hci(m);
+	struct hci_xfer *read_xfer;
+
+	reinit_completion(&hci->pending_r_comp);
+	read_xfer = ast2700_i3c_target_priv_xfers(dev, i3c_xfers, nxfers,
+						  TID_TARGET_RD_DATA);
+	if (!read_xfer)
+		return -EINVAL;
+
+	if (!wait_for_completion_interruptible_timeout(&hci->pending_r_comp,
+						       msecs_to_jiffies(1000))) {
+		dev_warn(&hci->master.dev, "timeout waiting for master read\n");
+		mipi_i3c_hci_pio_reset(hci);
+		return -EINVAL;
+	}
+	hci_free_xfer(read_xfer, 1);
+
+	return 0;
 }
 
 static int ast2700_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, int len)
@@ -1145,7 +1145,7 @@ static const struct i3c_target_ops ast2700_i3c_target_ops = {
 	.bus_init = ast2700_i3c_target_bus_init,
 	.bus_cleanup = ast2700_i3c_target_bus_cleanup,
 	.hj_req = ast2700_i3c_target_hj_req,
-	.priv_xfers = NULL,
+	.priv_xfers = ast2700_i3c_target_put_rdata,
 	.generate_ibi = ast2700_i3c_target_generate_ibi,
 	.pending_read_notify = ast2700_i3c_target_pending_read_notify,
 	.is_ibi_enabled = ast2700_i3c_target_is_ibi_enabled,
@@ -1416,7 +1416,7 @@ static int i3c_hci_probe(struct platform_device *pdev)
 			"missing or invalid reset controller device tree entry");
 		return PTR_ERR(hci->rst);
 	}
-
+	reset_control_assert(hci->rst);
 	reset_control_deassert(hci->rst);
 
 	hci->dma_rst = devm_reset_control_get_shared_by_index(&pdev->dev, 1);

@@ -487,9 +487,11 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 	struct hci_rh_data *rh = &rings->headers[xfer_list[0].ring_number];
 	unsigned int i;
 	bool did_unqueue = false;
+	u32 ring_ctrl_val;
 
+	ring_ctrl_val = rh_reg_read(RING_CONTROL);
 	/* stop the ring */
-	rh_reg_write(RING_CONTROL, RING_CTRL_ABORT);
+	rh_reg_write(RING_CONTROL, ring_ctrl_val | RING_CTRL_ABORT);
 	if (wait_for_completion_timeout(&rh->op_done, HZ) == 0) {
 		/*
 		 * We're deep in it if ever this condition is ever met.
@@ -530,7 +532,7 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 	}
 
 	/* restart the ring */
-	rh_reg_write(RING_CONTROL, RING_CTRL_ENABLE);
+	rh_reg_write(RING_CONTROL, RING_CTRL_ENABLE | RING_CTRL_RUN_STOP);
 
 	return did_unqueue;
 }
@@ -558,30 +560,35 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 			    TARGET_RESP_TID(resp), TARGET_RESP_CCC_HDR(resp),
 			    TARGET_RESP_DATA_LENGTH(resp));
 			/* ibi or master read or HDR read */
-			if (!TARGET_RESP_CCC_INDICATE(resp)) {
+			if (!TARGET_RESP_STATUS(resp) && !TARGET_RESP_CCC_INDICATE(resp)) {
 				if (TARGET_RESP_TID(resp) == TID_TARGET_IBI)
 					complete(&hci->ibi_comp);
-				else if (TARGET_RESP_TID(resp) ==
-					 TID_TARGET_RD_DATA)
+				else if (TARGET_RESP_TID(resp) == TID_TARGET_RD_DATA)
 					complete(&hci->pending_r_comp);
 			}
-		} else {
-			xfer = rh->src_xfers[done_ptr];
-			if (!xfer) {
-				DBG("orphaned ring entry");
-			} else {
-				hci_dma_unmap_xfer(hci, xfer, 1);
-				xfer->ring_entry = -1;
-				xfer->response = resp;
-				if (tid != xfer->cmd_tid) {
-					dev_err(&hci->master.dev,
-						"response tid=%d when expecting %d\n",
-						tid, xfer->cmd_tid);
-					/* TODO: do something about it? */
-				}
-				if (xfer->completion)
-					complete(xfer->completion);
+
+			if (TARGET_RESP_STATUS(resp) >= TARGET_RESP_ERR_CRC &&
+			    TARGET_RESP_STATUS(resp) <= TARGET_RESP_ERR_I2C_READ_TOO_MUCH) {
+				dev_err(&hci->master.dev, "Target Xfer Error: 0x%lx",
+					TARGET_RESP_STATUS(resp));
+				mipi_i3c_hci_resume(hci);
 			}
+		}
+		xfer = rh->src_xfers[done_ptr];
+		if (!xfer) {
+			DBG("orphaned ring entry");
+		} else {
+			hci_dma_unmap_xfer(hci, xfer, 1);
+			xfer->ring_entry = -1;
+			xfer->response = resp;
+			if (tid != xfer->cmd_tid) {
+				dev_err(&hci->master.dev,
+					"response tid=%d when expecting %d\n",
+					tid, xfer->cmd_tid);
+				/* TODO: do something about it? */
+			}
+			if (xfer->completion)
+				complete(xfer->completion);
 		}
 		done_ptr = (done_ptr + 1) % rh->xfer_entries;
 		rh->done_ptr = done_ptr;

@@ -375,6 +375,9 @@ static bool dw_i3c_master_supports_ccc_cmd(struct i3c_master_controller *m,
 	case I3C_CCC_GETHDRCAP:
 	case I3C_CCC_SETAASA:
 	case I3C_CCC_SETHID:
+	case I3C_CCC_DBGACTION(true):
+	case I3C_CCC_DBGACTION(false):
+	case I3C_CCC_DBGOPCODE:
 		return true;
 	default:
 		return false;
@@ -683,6 +686,9 @@ static void dw_i3c_master_end_xfer_locked(struct dw_i3c_master *master, u32 isr)
 	}
 
 	for (i = 0; i < nresp; i++) {
+		if (xfer->cmds[i].error)
+			dev_err(&master->base.dev, "xfer error: %x\n",
+				xfer->cmds[i].error);
 		switch (xfer->cmds[i].error) {
 		case RESPONSE_NO_ERROR:
 			break;
@@ -1387,9 +1393,10 @@ static int dw_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 	return ret;
 }
 
-static int dw_i3c_master_send_hdr_cmds(struct i3c_master_controller *m,
+static int dw_i3c_master_send_hdr_cmds(struct i3c_dev_desc *dev,
 				       struct i3c_hdr_cmd *cmds, int ncmds)
 {
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	u8 dat_index;
 	int ret, i, ntxwords = 0, nrxwords = 0;
@@ -1427,14 +1434,11 @@ static int dw_i3c_master_send_hdr_cmds(struct i3c_master_controller *m,
 	for (i = 0; i < ncmds; i++) {
 		struct dw_i3c_cmd *cmd = &xfer->cmds[i];
 
-		dev_dbg(&master->base.dev, "cmds[%d] addr = %x", i,
-			cmds[i].addr);
-		dat_index = master->platform_ops->get_addr_pos(master,
-							       cmds[i].addr);
+		dat_index = master->platform_ops->get_addr_pos(master, dev->info.dyn_addr);
 
 		if (dat_index < 0)
 			return dat_index;
-		master->platform_ops->flush_dat(master, cmds[i].addr);
+		master->platform_ops->flush_dat(master, dev->info.dyn_addr);
 
 		cmd->cmd_hi =
 			COMMAND_PORT_ARG_DATA_LEN(cmds[i].ndatawords << 1) |
@@ -1532,11 +1536,28 @@ static int dw_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
 	return 0;
 }
 
-static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, int len)
+static int dw_i3c_target_reset_controller(struct dw_i3c_master *master)
+{
+	int ret;
+
+	ret = reset_control_assert(master->core_rst);
+	if (ret)
+		return ret;
+
+	ret = reset_control_deassert(master->core_rst);
+	if (ret)
+		return ret;
+
+	return dw_i3c_target_bus_init(&master->base);
+}
+
+static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data,
+				      int len)
 {
 	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	u32 reg;
+	int ret;
 
 	if (data || len != 0)
 		return -EOPNOTSUPP;
@@ -1549,7 +1570,13 @@ static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, 
 	writel(1, master->regs + SLV_INTR_REQ);
 
 	if (!wait_for_completion_timeout(&master->target.comp, XFER_TIMEOUT)) {
-		dev_warn(&master->base.dev, "Timeout waiting for completion\n");
+		dev_warn(&master->base.dev, "Timeout waiting for completion: Reset controller\n");
+		kfree(master->target.rx.buf);
+
+		ret = dw_i3c_target_reset_controller(master);
+		if (ret)
+			dev_warn(&master->base.dev, "Reset controller failure: %d\n", ret);
+
 		return -EINVAL;
 	}
 
@@ -1631,7 +1658,6 @@ static int dw_i3c_target_pending_read_notify(struct i3c_dev_desc *dev,
 	ret = dw_i3c_target_generate_ibi(dev, NULL, 0);
 	if (ret) {
 		dev_warn(&master->base.dev, "Timeout waiting for completion: IBI MDB\n");
-		dw_i3c_target_reset_queue(master);
 		return -EINVAL;
 	}
 
@@ -1653,6 +1679,17 @@ static bool dw_i3c_target_is_ibi_enabled(struct i3c_dev_desc *dev)
 
 	reg = readl(master->regs + SLV_EVENT_CTRL);
 	return !!(reg & SLV_EVENT_CTRL_SIR_EN);
+}
+
+static u8 dw_i3c_target_get_dyn_addr(struct i3c_master_controller *m)
+{
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+	u32 reg;
+
+	reg = readl(master->regs + DEVICE_ADDR);
+	if (reg & DEV_ADDR_DYNAMIC_ADDR_VALID)
+		return FIELD_GET(DEV_ADDR_DYNAMIC, reg);
+	return 0;
 }
 
 static int dw_i3c_master_reattach_i3c_dev(struct i3c_dev_desc *dev,
@@ -2333,6 +2370,7 @@ static const struct i3c_target_ops dw_mipi_i3c_target_ops = {
 	.pending_read_notify = dw_i3c_target_pending_read_notify,
 	.is_hj_enabled =  dw_i3c_target_is_hj_enabled,
 	.is_ibi_enabled = dw_i3c_target_is_ibi_enabled,
+	.get_dyn_addr = dw_i3c_target_get_dyn_addr,
 };
 
 static const struct i3c_master_controller_ops dw_mipi_i3c_ops = {
