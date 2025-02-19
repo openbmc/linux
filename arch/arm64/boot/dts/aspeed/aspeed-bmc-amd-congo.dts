@@ -40,14 +40,39 @@
 			no-map;
 		};
 
-		atf: trusted-firmware-a@430000000 {
-			reg = <0x4 0x30000000 0x0 0x80000>;
-			no-map;
+		espi_mmbi_memory: espi-mmbi-memory@428000000 {
+		reg = <0x4 0x28000000 0x0 0x4000000>;
+		no-map;
 		};
 
-		optee_core: optee_core@430080000 {
-			reg = <0x4 0x30080000 0x0 0x1000000>;
-			no-map;
+		ssp_memory: ssp-memory@42c000000 {
+		reg = <0x4 0x2c000000 0x0 0x2000000>;
+		no-map;
+		};
+
+		tsp_memory: tsp-memory@42e000000 {
+		reg = <0x4 0x2e000000 0x0 0x2000000>;
+		no-map;
+		};
+
+		atf: trusted-firmware-a@430000000 {
+		reg = <0x4 0x30000000 0x0 0x80000>;
+		no-map;
+		};
+
+		optee_core: optee-core@430080000 {
+		reg = <0x4 0x30080000 0x0 0x1000000>;
+		no-map;
+		};
+
+		vbios_base0: vbios-base0@431bb0000 {
+		reg = <0x4 0x31bb0000 0x0 0x10000>;
+		no-map;
+		};
+
+		vbios_base1: vbios-base1@431bc0000 {
+		reg = <0x4 0x31bc0000 0x0 0x10000>;
+		no-map;
 		};
 
 		video_engine_memory0: video0 {
@@ -58,9 +83,17 @@
 		};
 
 		pcc_memory: pccbuffer {
-                        reg = <0xE0000000 0x00001000>; /* 4K */
+		reg = <0x4 0xE0000000 0x00001000>; /* 4K */
 			no-map;
-                };
+		};
+
+		xdma_memory0: xdma0 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x01000000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
 	};
 
 	aliases {
@@ -168,7 +201,7 @@
 		status = "okay";
 		m25p,fast-read;
 		label = "pnor";
-		spi-max-frequency = <16000000>;
+		spi-max-frequency = <1000000>;
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <1>;
 	};
@@ -183,10 +216,25 @@
 		status = "okay";
 		m25p,fast-read;
 		label = "pnor";
-		spi-max-frequency = <16000000>;
+		spi-max-frequency = <1000000>;
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <1>;
 	};
+};
+
+&spi2 {
+        status = "okay";
+        pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
+        pinctrl-names = "default";
+
+        flash@0 {
+                status = "okay";
+                m25p,fast-read;
+                label = "pnor";
+                spi-max-frequency = <1000000>;
+                spi-tx-bus-width = <1>;
+                spi-rx-bus-width = <1>;
+        };
 };
 
 //BMC Console
@@ -658,53 +706,59 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	JESD300_SPD_I3C_MODE(0, 7, 57);
 };
 
-
 &gpio0 {
+        status = "okay";
+};
+
+&ltpi0 {
+	status = "okay";
+};
+
+&ltpi0_gpio {
+	status = "okay";
         gpio-line-names =
-                /*A0-A7*/       "","","","","","","","",
-                /*B0-B7*/       "","","","","","","","",
-                /*C0-C7*/       "","","","","","","","",
-                /*D0-D7*/       "","","","","","","","",
-                /*E0-E7*/       "","","","","","","","",
-                /*F0-F7*/       "","","","","","","","",
-                /*G0-G7*/       "","","","","","","","",
-                /*H0-H7*/       "","","","","","","","",
-                /*I0-I7*/       "","","","","","","","",
-                /*J0-J7*/       "","","","","","","","",
-                /*K0-K7*/       "","","","","","","","",
-                /*L0-L7*/       "","","","","","","","",
-                /*M0-M7*/       "","","","","","","","",
-                /*N0-N7*/       "","","","","","","","",
-                /*O0-O7*/       "","","","","","","","",
-                /*P0-P7*/       "","","","","","","","",
-                /*Q0-Q7*/       "","","","","","","","",
-                /*R0-R7*/       "","","","","","","","",
-                /*S0-S7*/       "","","","","","","","",
-                /*T0-T7*/       "","","","","","","","",
-                /*U0-U7*/       "","","","","","","","",
-                /*V0-V7*/       "","","","","","","","",
-                /*W0-W7*/       "","","","","","","","",
-                /*X0-X7*/       "","","","","","","","",
-                /*Y0-Y7*/       "","","","","","","","",
-                /*Z0-Z7*/       "","","","","","","","",
-                /*AA0-AA7*/     "","","","","","","","",
-                /*AB0-AB7*/     "HPM_STBY_EN","P0_MGMT_ASSERT_CLR_CMOS",
-				"P0_MGMT_MON_PROCHOT_L","","","",
-				"P0_MGMT_ASSERT_NMI_BTN_L",
-				"MGMT_SYS_MON_ATX_PWR_OK",
-                /*AC0-AC7*/     "P0_PRESENT_L","P0_MGMT_MON_RSMRST_L",
-				"P0_MGMT_MON_POST_COMPLETE",
-				"P0_MGMT_MON_THERMTRIP_L",
-				"P0_MGMT_MON_PWR_GOOD","P0_ASSERT_RSMRST",
-				"P0_MGMT_SOC_RESET_L",
-				"P0_MGMT_MON_PSP_SOFT_FUSE_NTFY",
-                /*AD0-AD7*/     "P0_I3C_APML_ALERT_L","MGMT_HDT_SEL",
-				"SCM_JTAG_DBREQ","JTAG_TRST_N","P1_PRESENT_L",
-				"","","",
-                /*AE0-AE7*/     "P0_MGMT_ASSERT_RST_BTN_L",
-				"P0_MGMT_ASSERT_PWR_BTN_L",
-				"P0_MGMT_MON_RST_BTN_L",
-				"P0_MGMT_MON_PWR_BTN_L","","","","";
+             /*00-07*/ "","HPM_STBY_EN","",
+		       "P0_MGMT_ASSERT_CLR_CMOS","P0_MGMT_MON_PROCHOT_L","P0_MGMT_ASSERT_PROCHOT_L",
+		       "P0_MGMT_MON_RSMRST_L","P0_ASSERT_RSMRST",
+             /*08-15*/ "P0_MGMT_MON_THERMTRIP_L","P0_MGMT_ASSERT_THERMTRIP_L","P0_PRESENT_L",
+		       "","P1_PRESENT_L","",
+		       "P0_MGMT_MON_POST_COMPLETE","",
+             /*16-23*/ "P0_MGMT_MON_PWR_GOOD","","P0_MGMT_MON_PSP_SOFT_FUSE_NTFY",
+                       "","P0_I3C_APML_ALERT_L","",
+		       "MGMT_SYS_MON_ATX_PWR_OK","",
+             /*24-31*/ "","","","","","","","P0_MGMT_ASSERT_NMI_BTN_L",
+             /*32-39*/ "","P0_MGMT_SOC_RESET_L","",
+		        "MGMT_HDT_SEL","","SCM_JTAG_DBREQ","","JTAG_TRST_N",
+             /*40-47*/ "","","","","","","","",
+             /*48-55*/ "","","","","","","","",
+             /*56-63*/ "","","","","","","","",
+             /*64-71*/ "","","","","","","","",
+             /*72-79*/ "","","","","","","","",
+             /*80-87*/ "","","","","","","","",
+             /*88-95*/ "","","","","","","","",
+             /*96-103*/ "","","","","","","","",
+             /*104-111*/ "","","","","","","","",
+             /*112-119*/ "","","","","","","","",
+             /*120-127*/ "","","","","","","","",
+             /*128-135*/ "P0_MGMT_MON_RST_BTN_L","P0_MGMT_ASSERT_RST_BTN_L","P0_MGMT_MON_PWR_BTN_L",
+			 "P0_MGMT_ASSERT_PWR_BTN_L","","",
+			 "","",
+             /*136-143*/ "","","","","","","","",
+             /*144-151*/ "","","","","","","","",
+             /*152-159*/ "","","","","","","","",
+             /*160-167*/ "","","","","","","","",
+             /*168-175*/ "","","","","","","","",
+             /*176-183*/ "","","","","","","","",
+             /*184-191*/ "","","","","","","","",
+             /*192-199*/ "","","","","","","","",
+             /*200-207*/ "","","","","","","","",
+             /*208-215*/ "","","","","","","","",
+             /*216-223*/ "","","","","","","","";
+
+};
+
+&sgpios {
+        status = "okay";
 };
 
 &video0 {
@@ -735,25 +789,21 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
        status = "okay";
 };
 
-&uart9 {
+&uart3 {
        /delete-property/ pinctrl-names;
        /delete-property/ pinctrl-0;
        status = "okay";
 };
-&vhuba1 {
-	status = "okay";
+
+&uart13 {
+       /delete-property/ pinctrl-names;
+       /delete-property/ pinctrl-0;
+       status = "okay";
 };
 
-&usb3ahp {
+&xdma0 {
 	status = "okay";
-};
-
-&uphy2a {
-	status = "okay";
-};
-
-&uphy3a {
-	status = "okay";
+	memory-region = <&xdma_memory0>;
 };
 
 &lpc0_kcs2 {
