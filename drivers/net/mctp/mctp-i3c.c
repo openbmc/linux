@@ -515,6 +515,9 @@ static int mctp_i3c_header_create(struct sk_buff *skb, struct net_device *dev,
 	if (rc)
 		return rc;
 
+	if (!daddr || !saddr)
+		return -EINVAL;
+
 	skb_push(skb, sizeof(struct mctp_i3c_internal_hdr));
 	skb_reset_mac_header(skb);
 	ihdr = (void *)skb_mac_header(skb);
