@@ -788,10 +788,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
         status = "okay";
 };
 
-&ltpi0 {
-       status = "okay";
-};
-
 &uart3 {
        /delete-property/ pinctrl-names;
        /delete-property/ pinctrl-0;
@@ -802,6 +798,20 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
        /delete-property/ pinctrl-names;
        /delete-property/ pinctrl-0;
        status = "okay";
+};
+
+&uphy3a {
+       status = "okay";
+};
+
+&vhuba0 {
+       status = "okay";
+       pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
+};
+
+&usb3ahp {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb3axhp_default &pinctrl_usb2axhp_default>;
 };
 
 &xdma0 {
