@@ -50,6 +50,16 @@
 			no-map;
 		};
 
+		vbios_base0: vbios-base0@431bb0000 {
+			reg = <0x4 0x31bb0000 0x0 0x10000>;
+			no-map;
+		};
+
+		vbios_base1: vbios-base1@431bc0000 {
+			reg = <0x4 0x31bc0000 0x0 0x10000>;
+			no-map;
+		};
+
 		video_engine_memory0: video0 {
 			size = <0x0 0x04000000>;
 			alignment = <0x0 0x00010000>;
@@ -58,9 +68,16 @@
 		};
 
 		pcc_memory: pccbuffer {
-                        reg = <0xE0000000 0x00001000>; /* 4K */
+			reg = <0x4 0xE0000000 0x00001000>; /* 4K */
 			no-map;
-                };
+		};
+
+		xdma_memory0: xdma0 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x01000000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
 	};
 	aliases {
 		i2c100 = &NC_1;
@@ -1014,6 +1031,11 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 
 &uphy3a {
 	status = "okay";
+};
+
+&xdma0 {
+	status = "okay";
+	memory-region = <&xdma_memory0>;
 };
 
 &lpc0_kcs2 {
