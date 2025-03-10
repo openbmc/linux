@@ -45,7 +45,7 @@
 			no-map;
 		};
 
-		optee_core: optee_core@430080000 {
+		optee_core: optee-core@430080000 {
 			reg = <0x4 0x30080000 0x0 0x1000000>;
 			no-map;
 		};
