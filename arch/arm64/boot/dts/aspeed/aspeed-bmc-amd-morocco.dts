@@ -1030,14 +1030,21 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 };
 
 &ltpi0 {
-       status = "okay";
+        status = "okay";
 };
 
-&uart9 {
-       /delete-property/ pinctrl-names;
-       /delete-property/ pinctrl-0;
-       status = "okay";
+&uart3 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
 };
+
+&uart13 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
 &vhuba1 {
         status = "okay";
 };
