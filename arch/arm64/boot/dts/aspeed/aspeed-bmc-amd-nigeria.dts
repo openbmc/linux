@@ -415,7 +415,7 @@
 	};
 };
 
-&i2c10 {
+&i2c12 {
 	// Net name i2c2 (SCM_I2C_SDA<2>)
 	status = "okay";
 
