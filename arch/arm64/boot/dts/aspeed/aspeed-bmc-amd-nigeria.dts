@@ -755,16 +755,18 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	status = "okay";
 };
 
-&vhuba1 {
+&uphy3a {
 	status = "okay";
+};
+
+&vhuba0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
 };
 
 &usb3ahp {
 	status = "okay";
-};
-
-&uphy3a {
-	status = "okay";
+	pinctrl-0 = <&pinctrl_usb3axhp_default &pinctrl_usb2axhp_default>;
 };
 
 &xdma0 {
