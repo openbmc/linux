@@ -668,7 +668,13 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 };
 
 &gpio0 {
-        status = "okay";
+	status = "okay";
+	espi_default {
+		gpio-hog;
+		gpios = <10 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "espiboot_pin_default";
+	};
 };
 
 &ltpi0 {
@@ -740,10 +746,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	rec-mode = <0x1>;
 	port-addr-hbits-select = <0x1>;
 	port-addr-xbits = <0x3>;
-	status = "okay";
-};
-
-&ltpi0 {
 	status = "okay";
 };
 
