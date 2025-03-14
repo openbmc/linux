@@ -41,38 +41,38 @@
 		};
 
 		espi_mmbi_memory: espi-mmbi-memory@428000000 {
-		reg = <0x4 0x28000000 0x0 0x4000000>;
-		no-map;
+			reg = <0x4 0x28000000 0x0 0x4000000>;
+			no-map;
 		};
 
 		ssp_memory: ssp-memory@42c000000 {
-		reg = <0x4 0x2c000000 0x0 0x2000000>;
-		no-map;
+			reg = <0x4 0x2c000000 0x0 0x2000000>;
+			no-map;
 		};
 
 		tsp_memory: tsp-memory@42e000000 {
-		reg = <0x4 0x2e000000 0x0 0x2000000>;
-		no-map;
+			reg = <0x4 0x2e000000 0x0 0x2000000>;
+			no-map;
 		};
 
 		atf: trusted-firmware-a@430000000 {
-		reg = <0x4 0x30000000 0x0 0x80000>;
-		no-map;
+			reg = <0x4 0x30000000 0x0 0x80000>;
+			no-map;
 		};
 
 		optee_core: optee-core@430080000 {
-		reg = <0x4 0x30080000 0x0 0x1000000>;
-		no-map;
+			reg = <0x4 0x30080000 0x0 0x1000000>;
+			no-map;
 		};
 
 		vbios_base0: vbios-base0@431bb0000 {
-		reg = <0x4 0x31bb0000 0x0 0x10000>;
-		no-map;
+			reg = <0x4 0x31bb0000 0x0 0x10000>;
+			no-map;
 		};
 
 		vbios_base1: vbios-base1@431bc0000 {
-		reg = <0x4 0x31bc0000 0x0 0x10000>;
-		no-map;
+			reg = <0x4 0x31bc0000 0x0 0x10000>;
+			no-map;
 		};
 
 		video_engine_memory0: video0 {
@@ -83,7 +83,7 @@
 		};
 
 		pcc_memory: pccbuffer {
-		reg = <0x4 0xE0000000 0x00001000>; /* 4K */
+			reg = <0x4 0xE0000000 0x00001000>; /* 4K */
 			no-map;
 		};
 
@@ -93,7 +93,6 @@
 			compatible = "shared-dma-pool";
 			no-map;
 		};
-
 	};
 
 	aliases {
@@ -223,21 +222,21 @@
 };
 
 &spi2 {
-        status = "okay";
-        pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
-        pinctrl-names = "default";
-        compatible = "aspeed,ast2700-spi";
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
+	pinctrl-names = "default";
+	compatible = "aspeed,ast2700-spi";
 
-        flash@0 {
-                reg = <0>;
-                status = "okay";
-                m25p,fast-read;
-                label = "pnor";
-                compatible = "jedec,spi-nor";
-                spi-max-frequency = <33000000>;
-                spi-tx-bus-width = <1>;
-                spi-rx-bus-width = <1>;
-        };
+	flash@0 {
+		reg = <0>;
+ 		status = "okay";
+		m25p,fast-read;
+		label = "pnor";
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <33000000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
 };
 
 //BMC Console
@@ -710,7 +709,13 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 };
 
 &gpio0 {
-        status = "okay";
+	status = "okay";
+	espi_default {
+		gpio-hog;
+		gpios = <10 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "espiboot_pin_default";
+	};
 };
 
 &ltpi0 {
@@ -719,49 +724,48 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 
 &ltpi0_gpio {
 	status = "okay";
-        gpio-line-names =
-             /*00-07*/ "","HPM_STBY_EN","",
-		       "P0_MGMT_ASSERT_CLR_CMOS","P0_MGMT_MON_PROCHOT_L","P0_MGMT_ASSERT_PROCHOT_L",
-		       "P0_MGMT_MON_RSMRST_L","P0_ASSERT_RSMRST",
-             /*08-15*/ "P0_MGMT_MON_THERMTRIP_L","P0_MGMT_ASSERT_THERMTRIP_L","P0_PRESENT_L",
-		       "","P1_PRESENT_L","",
-		       "P0_MGMT_MON_POST_COMPLETE","",
-             /*16-23*/ "P0_MGMT_MON_PWR_GOOD","","P0_MGMT_MON_PSP_SOFT_FUSE_NTFY",
-                       "","P0_I3C_APML_ALERT_L","",
-		       "MGMT_SYS_MON_ATX_PWR_OK","",
-             /*24-31*/ "","","","","","","","P0_MGMT_ASSERT_NMI_BTN_L",
-             /*32-39*/ "","P0_MGMT_SOC_RESET_L","",
-		        "MGMT_HDT_SEL","","SCM_JTAG_DBREQ","","JTAG_TRST_N",
-             /*40-47*/ "","","","","","","","",
-             /*48-55*/ "","","","","","","","",
-             /*56-63*/ "","","","","","","","",
-             /*64-71*/ "","","","","","","","",
-             /*72-79*/ "","","","","","","","",
-             /*80-87*/ "","","","","","","","",
-             /*88-95*/ "","","","","","","","",
-             /*96-103*/ "","","","","","","","",
-             /*104-111*/ "","","","","","","","",
-             /*112-119*/ "","","","","","","","",
-             /*120-127*/ "","","","","","","","",
-             /*128-135*/ "P0_MGMT_MON_RST_BTN_L","P0_MGMT_ASSERT_RST_BTN_L","P0_MGMT_MON_PWR_BTN_L",
-			 "P0_MGMT_ASSERT_PWR_BTN_L","","",
-			 "","",
-             /*136-143*/ "","","","","","","","",
-             /*144-151*/ "","","","","","","","",
-             /*152-159*/ "","","","","","","","",
-             /*160-167*/ "","","","","","","","",
-             /*168-175*/ "","","","","","","","",
-             /*176-183*/ "","","","","","","","",
-             /*184-191*/ "","","","","","","","",
-             /*192-199*/ "","","","","","","","",
-             /*200-207*/ "","","","","","","","",
-             /*208-215*/ "","","","","","","","",
-             /*216-223*/ "","","","","","","","";
-
+	gpio-line-names =
+		/*00-07*/ "","HPM_STBY_EN","",
+			"P0_MGMT_ASSERT_CLR_CMOS","P0_MGMT_MON_PROCHOT_L","P0_MGMT_ASSERT_PROCHOT_L",
+			"P0_MGMT_MON_RSMRST_L","P0_ASSERT_RSMRST",
+		/*08-15*/ "P0_MGMT_MON_THERMTRIP_L","P0_MGMT_ASSERT_THERMTRIP_L","P0_PRESENT_L",
+			"","P1_PRESENT_L","",
+			"P0_MGMT_MON_POST_COMPLETE","",
+		/*16-23*/ "P0_MGMT_MON_PWR_GOOD","","P0_MGMT_MON_PSP_SOFT_FUSE_NTFY",
+			"","P0_I3C_APML_ALERT_L","",
+			"MGMT_SYS_MON_ATX_PWR_OK","",
+		/*24-31*/ "","","","","","","","P0_MGMT_ASSERT_NMI_BTN_L",
+		/*32-39*/ "","P0_MGMT_SOC_RESET_L","",
+			"MGMT_HDT_SEL","","SCM_JTAG_DBREQ","","JTAG_TRST_N",
+		/*40-47*/ "","","","","","","","",
+		/*48-55*/ "","","","","","","","",
+		/*56-63*/ "","","","","","","","",
+		/*64-71*/ "","","","","","","","",
+		/*72-79*/ "","","","","","","","",
+		/*80-87*/ "","","","","","","","",
+		/*88-95*/ "","","","","","","","",
+		/*96-103*/ "","","","","","","","",
+		/*104-111*/ "","","","","","","","",
+		/*112-119*/ "","","","","","","","",
+		/*120-127*/ "","","","","","","","",
+		/*128-135*/ "P0_MGMT_MON_RST_BTN_L","P0_MGMT_ASSERT_RST_BTN_L","P0_MGMT_MON_PWR_BTN_L",
+			"P0_MGMT_ASSERT_PWR_BTN_L","","",
+			"","",
+		/*136-143*/ "","","","","","","","",
+		/*144-151*/ "","","","","","","","",
+                /*152-159*/ "","","","","","","","",
+                /*160-167*/ "","","","","","","","",
+                /*168-175*/ "","","","","","","","",
+                /*176-183*/ "","","","","","","","",
+                /*184-191*/ "","","","","","","","",
+                /*192-199*/ "","","","","","","","",
+                /*200-207*/ "","","","","","","","",
+                /*208-215*/ "","","","","","","","",
+                /*216-223*/ "","","","","","","","";
 };
 
 &sgpios {
-        status = "okay";
+	status = "okay";
 };
 
 &video0 {
@@ -777,36 +781,36 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 };
 
 &lpc0_pcc {
-        port-addr = <0x80>;
-        dma-mode;
-        A2600-15;
-        memory-region = <&pcc_memory>;
-        rec-mode = <0x1>;
-        port-addr-hbits-select = <0x1>;
-        port-addr-xbits = <0x3>;
+	port-addr = <0x80>;
+	dma-mode;
+	A2600-15;
+	memory-region = <&pcc_memory>;
+	rec-mode = <0x1>;
+	port-addr-hbits-select = <0x1>;
+	port-addr-xbits = <0x3>;
 
-        status = "okay";
+	status = "okay";
 };
 
 &uart3 {
-       /delete-property/ pinctrl-names;
-       /delete-property/ pinctrl-0;
-       status = "okay";
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
 };
 
 &uart13 {
-       /delete-property/ pinctrl-names;
-       /delete-property/ pinctrl-0;
-       status = "okay";
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
 };
 
 &uphy3a {
-       status = "okay";
+	status = "okay";
 };
 
 &vhuba0 {
-       status = "okay";
-       pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
 };
 
 &usb3ahp {
