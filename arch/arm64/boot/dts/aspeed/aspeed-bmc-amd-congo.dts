@@ -107,6 +107,12 @@
 		i2c129 = &adc_prb;
 		i2c130 = &NC_3;
 		i2c131 = &NC_4;
+		i2c180 = &ginger_z_pcie_slot0;
+		i2c181 = &ginger_z_pcie_slot1;
+		i2c182 = &ginger_z_pcie_slot2;
+		i2c183 = &ginger_p_pcie_slot0;
+		i2c184 = &ginger_p_pcie_slot1;
+		i2c185 = &ginger_p_pcie_slot2;
 		i2c200 = &picpwr_fan_0;
 		i2c201 = &picpwr_fan_1;
 		i2c202 = &picpwr_pdb;
@@ -256,6 +262,14 @@
 	// Net name SCM_I2C<0>
 	status = "okay";
 	clock-frequency = <400000>;
+
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+
 	hpmeeprom@50 {
 		compatible = "microchip,24lc256","atmel,24c256";
 		reg = <0x50>;
@@ -283,13 +297,185 @@
                         reg = <2>;
                         #address-cells = <1>;
                         #size-cells = <0>;
-                };
+			i2cswitch@71 {
+				compatible = "nxp,pca9548";
+				reg = <0x71>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				ginger_z_pcie_conn1_i2c: i2c@2 {
+					reg = <2>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					i2cswitch@76 {
+						compatible = "nxp,pca9548";
+						reg = <0x76>;
+						#address-cells = <1>;
+						#size-cells = <0>;
+						ginger_z_id: i2c@0 {
+							reg = <0>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+							ginger_p_eeprom@56 {
+								compatible = "microchip,24lc256","atmel,24c256";
+								reg = <0x56>;
+							};
+						};
+
+						ginger_z_fans: i2c@2 {
+							reg = <2>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+
+							emc2305@4d {
+								compatible = "smsc,emc2305";
+								reg = <0x4d>;
+								#cooling-cells = <0x02>;
+
+								fan@0 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+								fan@1 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+								fan@2 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+								fan@3 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+							};
+						};
+
+						ginger_z_pcie_slot_i2c: i2c@6 {
+							reg = <6>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+							i2cswitch@77 {
+								compatible = "nxp,pca9546";
+								reg = <0x77>;
+								#address-cells = <1>;
+								#size-cells = <0>;
+
+								ginger_z_pcie_slot0: i2c@0 {
+									reg = <0>;
+									#address-cells = <1>;
+									#size-cells = <0>;
+									mctp-controller;
+								};
+								ginger_z_pcie_slot1: i2c@1 {
+									reg = <1>;
+									#address-cells = <1>;
+									#size-cells = <0>;
+									mctp-controller;
+								};
+								ginger_z_pcie_slot2: i2c@2 {
+									reg = <2>;
+									#address-cells = <1>;
+									#size-cells = <0>;
+									mctp-controller;
+								};
+							}; /* i2cswitch@77 */
+						}; /* ginger_z_pcie_slot_i2c: i2c@6 */
+					}; /* i2cswitch@76 */
+				}; /* ginger_z_pcie_conn1_i2c: i2c@2 */
+			}; /* i2cswitch@71 */
+		}; /* P0_conn_012_mgmt: i2c@2 */
 
                 P0_conn_345_mgmt: i2c@3 {
                         reg = <3>;
                         #address-cells = <1>;
                         #size-cells = <0>;
-                };
+			i2cswitch@71 {
+				compatible = "nxp,pca9548";
+				reg = <0x71>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				ginger_p_pcie_conn1_i2c: i2c@2 {
+					reg = <2>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					i2cswitch@76 {
+						compatible = "nxp,pca9548";
+						reg = <0x76>;
+						#address-cells = <1>;
+						#size-cells = <0>;
+						ginger_p_id: i2c@0 {
+							reg = <0>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+							ginger_p_eeprom@56 {
+								compatible = "microchip,24lc256","atmel,24c256";
+								reg = <0x56>;
+							};
+						};
+
+						ginger_p_fans: i2c@2 {
+							reg = <2>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+
+							emc2305@4d {
+								compatible = "smsc,emc2305";
+								reg = <0x4d>;
+								#cooling-cells = <0x02>;
+
+								fan@0 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+								fan@1 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+								fan@2 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+								fan@3 {
+									min-rpm = /bits/ 16 <1000>;
+									max-rpm = /bits/ 16 <16000>;
+								};
+							};
+						};
+
+						ginger_p_pcie_slot_i2c: i2c@6 {
+							reg = <6>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+							i2cswitch@77 {
+								compatible = "nxp,pca9546";
+								reg = <0x77>;
+								#address-cells = <1>;
+								#size-cells = <0>;
+
+								ginger_p_pcie_slot0: i2c@0 {
+									reg = <0>;
+									#address-cells = <1>;
+									#size-cells = <0>;
+									mctp-controller;
+								};
+								ginger_p_pcie_slot1: i2c@1 {
+									reg = <1>;
+									#address-cells = <1>;
+									#size-cells = <0>;
+									mctp-controller;
+								};
+								ginger_p_pcie_slot2: i2c@2 {
+									reg = <2>;
+									#address-cells = <1>;
+									#size-cells = <0>;
+									mctp-controller;
+								};
+							}; /* i2cswitch@77 */
+						}; /* ginger_p_pcie_slot_i2c: i2c@6 */
+					}; /* i2cswitch@76 */
+				}; /* ginger_p_pcie_conn1_i2c: i2c@2 */
+			}; /* i2cswitch@71 */
+		}; /*  P0_conn_345_mgmt: i2c@3  */
 
 		fan_pdb: i2c@4 {
 			reg = <4>;
