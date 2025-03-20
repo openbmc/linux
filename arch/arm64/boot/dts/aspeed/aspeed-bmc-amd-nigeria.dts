@@ -10,6 +10,7 @@
 #include <dt-bindings/i2c/i2c.h>
 #include <dt-bindings/i3c/i3c.h>
 
+//#define VERONA 1
 / {
 	model = "AMD Nigeria PRB";
 	compatible = "amd,nigeria-bmc", "aspeed,ast2700";
@@ -579,7 +580,7 @@
 	internal-pullup = <2>;
 	i3c-scl-hz = <10000000>;
 	i2c-scl-hz = <1000000>;
-
+#ifdef VERONA
 	sbtsi_p0_0: sbtsi@4c,22400000001 {
 		reg = <0x4c 0x224 0x00000001>;
 		assigned-address = <0x4c>;
@@ -588,6 +589,24 @@
 		reg = <0x3c 0x224 0x00000002>;
 		assigned-address = <0x3c>;
 	};
+#else
+	mctp-controller;
+
+	sbtsi_p0_0: sbtsi@4c,22400000118 {
+		reg = <0x4c 0x224 0x00000118>;
+		assigned-address = <0x4c>;
+	};
+
+	sbrmi_p0_1: sbrmi@3c,22400001118 {
+		reg = <0x3c 0x224 0x00001118>;
+		assigned-address = <0x3c>;
+	};
+
+	scoob_p0: scoob@5c,22400002118 {
+		reg = <0x5c 0x224 0x00002118>;
+		assigned-address = <0x5c>;
+	};
+#endif
 };
 
 &i3c5 {
@@ -596,6 +615,7 @@
 	internal-pullup = <2>;
 	i3c-scl-hz = <10000000>;
 	i2c-scl-hz = <1000000>;
+#ifdef VERONA
 
 	sbtsi_p1_0: sbtsi@48,22400000001 {
 		reg = <0x48 0x224 0x00000001>;
@@ -605,7 +625,27 @@
 		reg = <0x38 0x224 0x00000002>;
 		assigned-address = <0x38>;
 	};
+#else
+	mctp-controller;
+
+	sbtsi_p1_0: sbtsi@4c,22400000118 {
+		reg = <0x4c 0x224 0x00000118>;
+		assigned-address = <0x4c>;
+	};
+
+	sbrmi_p1_1: sbrmi@3c,22400001118 {
+		reg = <0x3c 0x224 0x00001118>;
+		assigned-address = <0x3c>;
+	};
+
+	scoob_p1: scoob@5c,22400002118 {
+		reg = <0x5c 0x224 0x00002118>;
+		assigned-address = <0x5c>;
+	};
+#endif
 };
+
+#ifdef I3C_HUB
 
 #define JESD300_SPD_I3C_MODE(bus, index, addr) \
 spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
@@ -666,6 +706,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	JESD300_SPD_I3C_MODE(1, 6, 56);
 	JESD300_SPD_I3C_MODE(1, 7, 57);
 };
+#endif
 
 &gpio0 {
 	status = "okay";
@@ -696,7 +737,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		/*24-31*/ "","","","","","","","P0_MGMT_ASSERT_NMI_BTN_L",
 		/*32-39*/ "","P0_MGMT_SOC_RESET_L","",
 			"MGMT_HDT_SEL","","SCM_JTAG_DBREQ","","JTAG_TRST_N",
-		/*40-47*/ "","","","","","","","",
+		/*40-47*/ "","P0_MGMT_ASSERT_WARM_RST_BTN_L","","","","","","",
 		/*48-55*/ "","","","","","","","",
 		/*56-63*/ "","","","","","","","",
 		/*64-71*/ "","","","","","","","",
