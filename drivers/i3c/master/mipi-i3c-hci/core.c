@@ -357,7 +357,7 @@ static int i3c_hci_bus_init(struct i3c_master_controller *m)
 		return ret;
 
 	reg_set(HC_CONTROL, HC_CONTROL_BUS_ENABLE);
-	DBG("HC_CONTROL = %#x", reg_read(HC_CONTROL));
+	dev_info(&hci->master.dev, "HC_CONTROL = %#x", reg_read(HC_CONTROL));
 
 	return 0;
 }
@@ -474,7 +474,7 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	DECLARE_COMPLETION_ONSTACK(done);
 	int i, last, ret = 0;
 
-	DBG("cmd=%#x rnw=%d dbp=%d db=%#x ndests=%d data[0].len=%d", ccc->id,
+	dev_info(&hci->master.dev, "cmd=%#x rnw=%d dbp=%d db=%#x ndests=%d data[0].len=%d", ccc->id,
 	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
 	    ccc->dests[0].payload.len);
 
@@ -492,7 +492,10 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 
 	xfer = hci_alloc_xfer(nxfers);
 	if (!xfer)
+	{
+		dev_info(&hci->master.dev,"hci_alloc_xfer error no mem \n");
 		return -ENOMEM;
+	}
 
 	if (prefixed) {
 		xfer->data = NULL;
@@ -525,6 +528,7 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 		goto out;
 	if (!wait_for_completion_timeout(&done, HZ) &&
 	    hci->io->dequeue_xfer(hci, xfer, nxfers)) {
+		dev_info(&hci->master.dev,"dequeue_xfer error time out \n");
 		ret = -ETIME;
 		goto out;
 	}
@@ -533,18 +537,21 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 			ccc->dests[i - prefixed].payload.len =
 				RESP_DATA_LENGTH(xfer[i].response);
 		if (RESP_STATUS(xfer[i].response) != RESP_SUCCESS) {
-			DBG("resp status = %lx", RESP_STATUS(xfer[i].response));
+			dev_info(&hci->master.dev, "resp status = %lx", RESP_STATUS(xfer[i].response));
 			if (RESP_STATUS(xfer[i].response) ==
 			    RESP_ERR_ADDR_HEADER)
 				ret = I3C_ERROR_M2;
 			else
+			{
+				dev_info(&hci->master.dev,"dequeue_xfer error IO \n");
 				ret = -EIO;
+			}
 			goto out;
 		}
 	}
 
 	if (ccc->rnw)
-		DBG("got: %*ph",
+		dev_info(&hci->master.dev, "got: %*ph",
 		    ccc->dests[0].payload.len, ccc->dests[0].payload.data);
 
 out:

@@ -45,6 +45,10 @@
 /* Two xfers, one write and one read require to read the data */
 #define I3C_I2C_MSG_XFER_SIZE		0x2
 
+/* DIMM temp */
+#define DIMM_BASE_ID          (0x80)
+#define DIMM_TEMP_OFFSET      (21)
+
 static int configure_regmap(struct apml_sbrmi_device *rmi_dev);
 
 enum sbrmi_msg_id {
@@ -52,6 +56,7 @@ enum sbrmi_msg_id {
 	SBRMI_WRITE_PKG_PWR_LIMIT,
 	SBRMI_READ_PKG_PWR_LIMIT,
 	SBRMI_READ_PKG_MAX_PWR_LIMIT,
+	SBRMI_READ_DIMM_THERMAL_SENSOR = 0x48,
 };
 
 static int sbrmi_get_max_pwr_limit(struct apml_sbrmi_device *rmi_dev)
@@ -76,7 +81,7 @@ static int sbrmi_read(struct device *dev, enum hwmon_sensor_types type,
 	struct apml_message msg = { 0 };
 	int ret = 0;
 
-	if (type != hwmon_power)
+	if ((type != hwmon_power) && (type != hwmon_temp))
 		return -EINVAL;
 	/* Configure regmap if not configured yet */
 	if (!rmi_dev->regmap) {
@@ -106,12 +111,31 @@ static int sbrmi_read(struct device *dev, enum hwmon_sensor_types type,
 		}
 		msg.data_out.mb_out[RD_WR_DATA_INDEX] = rmi_dev->pwr_limit_max;
 		break;
+	case hwmon_temp_input:
+		msg.cmd = SBRMI_READ_DIMM_THERMAL_SENSOR;
+		msg.data_in.mb_in[RD_WR_DATA_INDEX] = (DIMM_BASE_ID + channel);
+		ret = rmi_mailbox_xfer(rmi_dev, &msg);
+		if (ret < 0)
+			return ret;
+		break;
+
 	default:
 		ret = -EINVAL;
 	}
 	if (!ret)
-		/* hwmon power attributes are in microWatt */
-		*val = (long)msg.data_out.mb_out[RD_WR_DATA_INDEX] * 1000;
+	{
+		if (type == hwmon_power)
+		{
+			// hwmon power attributes are in microWatt
+			*val = (long)msg.data_out.mb_out[RD_WR_DATA_INDEX] * 1000;
+		}
+		else if (type == hwmon_temp)
+		{
+			// sbrmi temp is floating point, convert to deg C rational num
+			*val = (msg.data_out.mb_out[RD_WR_DATA_INDEX] >> DIMM_TEMP_OFFSET) * 1000;
+			*val = ((*val-32000) * (5/9));
+		}
+	}
 
 	mutex_unlock(&rmi_dev->lock);
 	return ret;
@@ -166,6 +190,12 @@ static umode_t sbrmi_is_visible(const void *data,
 			return 0644;
 		}
 		break;
+	case hwmon_temp:
+		switch (attr) {
+		case hwmon_temp_input:
+			return 0444;
+		}
+		break;
 	default:
 		break;
 	}
@@ -175,6 +205,11 @@ static umode_t sbrmi_is_visible(const void *data,
 static const struct hwmon_channel_info *sbrmi_info[] = {
 	HWMON_CHANNEL_INFO(power,
 			   HWMON_P_INPUT | HWMON_P_CAP | HWMON_P_CAP_MAX),
+	HWMON_CHANNEL_INFO(temp,
+		HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT,
+		HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT,
+		HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT,
+		HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT, HWMON_T_INPUT),
 	NULL
 };
 
@@ -541,12 +576,19 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 	struct apml_sbrmi_device *rmi_dev;
 
 	dev_info(dev, "SBRMI: PID: %llx\n", i3cdev->desc->info.pid);
-	if (!(i3cdev->desc->info.pid == 0x1000 || i3cdev->desc->info.pid == 0x22400000002))
+	if (!((i3cdev->desc->info.pid == 0x1000) || (i3cdev->desc->info.pid == 0x22400000002) ||
+	      (i3cdev->desc->info.pid == 0x1118)))
+	{
+		dev_info(dev, "SBRMI: PID Error: %llx\n", i3cdev->desc->info.pid);
 		return -ENXIO;
+	}
 
 	rmi_dev = devm_kzalloc(dev, sizeof(struct apml_sbrmi_device), GFP_KERNEL);
 	if (!rmi_dev)
+	{
+		dev_info(dev, "SBRMI: Error Mem Alloc\n");
 		return -ENOMEM;
+	}
 
 	atomic_set(&rmi_dev->in_progress, 0);
 	atomic_set(&rmi_dev->no_new_trans, 0);
@@ -559,7 +601,10 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 							 &sbrmi_chip_info, NULL);
 
 	if (!hwmon_dev)
+	{
+		dev_info(dev, "SBRMI: Error HWMON Device Register\n");
 		return PTR_ERR_OR_ZERO(hwmon_dev);
+	}
 
 	/* Need to verify for the static address for i3cdev */
 	rmi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
@@ -663,6 +708,8 @@ static const struct of_device_id __maybe_unused sbrmi_of_match[] = {
 MODULE_DEVICE_TABLE(of, sbrmi_of_match);
 
 static const struct i3c_device_id sbrmi_i3c_id[] = {
+	I3C_DEVICE_EXTRA_INFO(0x112, 0x0, 0x1118, NULL),
+	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x1118, NULL),
 	I3C_DEVICE_EXTRA_INFO(0x112, 0x0, 0x2, NULL),
 	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x0, NULL),
 	{}

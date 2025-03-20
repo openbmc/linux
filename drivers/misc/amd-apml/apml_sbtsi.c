@@ -300,9 +300,13 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 	};
 	struct regmap *regmap;
 
-	dev_info(dev, "SBTSI: PID: %llx\n", i3cdev->desc->info.pid);
-	if (!(i3cdev->desc->info.pid == 0x0 || i3cdev->desc->info.pid == 0x22400000001))
+	dev_err(dev, "SBTSI: PID: %llx\n", i3cdev->desc->info.pid);
+	if (!((i3cdev->desc->info.pid == 0x0) || (i3cdev->desc->info.pid == 0x22400000001) ||
+		(i3cdev->desc->info.pid == 0x118)))
+	{
+		dev_err(dev, "SBTSI: Error PID: %llx\n", i3cdev->desc->info.pid);
 		return -ENXIO;
+	}
 
 	regmap = devm_regmap_init_i3c(i3cdev, &sbtsi_i3c_regmap_config);
 	if (IS_ERR(regmap)) {
@@ -313,7 +317,10 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 
 	tsi_dev = devm_kzalloc(dev, sizeof(struct apml_sbtsi_device), GFP_KERNEL);
 	if (!tsi_dev)
+	{
+		dev_err(dev, "SBTSI: Error Mem All0c\n");
 		return -ENOMEM;
+	}
 
 	tsi_dev->regmap = regmap;
 	mutex_init(&tsi_dev->lock);
@@ -323,7 +330,10 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 							 &sbtsi_chip_info, NULL);
 
 	if (!hwmon_dev)
+	{
+		dev_err(dev, "SBTSI: Error hwmon_device_register \n" );
 		return PTR_ERR_OR_ZERO(hwmon_dev);
+	}
 
 	/* Need to verify for the static address for i3cdev */
 	tsi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
@@ -405,6 +415,8 @@ static void sbtsi_i2c_remove(struct i2c_client *client)
 }
 
 static const struct i3c_device_id sbtsi_i3c_id[] = {
+	I3C_DEVICE_EXTRA_INFO(0x112, 0, 0x118, NULL),
+	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x118, NULL),
 	I3C_DEVICE_EXTRA_INFO(0x112, 0, 0x1, NULL),
 	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x0, NULL),
 	{}
