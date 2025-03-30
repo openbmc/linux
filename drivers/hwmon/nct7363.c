@@ -1,396 +1,579 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * Copyright (c) 2023 Nuvoton Technology corporation.
- */
+    nct7362.c - Linux kernel driver for hardware monitoring
+    Copyright (C) 2008 Nuvoton Technology Corp.
+    			Wei Song
+		  2016 Nuvoton Technology Corp.
+			Sheng-Yuan Huang
+		  2020 Nuvoton Technology Corp.
+			Kuan-Wei Ho
 
-#include <linux/bitfield.h>
-#include <linux/bits.h>
-#include <linux/err.h>
-#include <linux/hwmon.h>
-#include <linux/hwmon-sysfs.h>
-#include <linux/i2c.h>
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation - version 2.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+    02110-1301 USA.
+
+
+    Supports following chips:
+*/
+
 #include <linux/module.h>
-#include <linux/mutex.h>
-#include <linux/regmap.h>
+#include <linux/init.h>
 #include <linux/slab.h>
+#include <linux/i2c.h>
+#include <linux/hwmon.h>
+#include <linux/hwmon-vid.h>
+#include <linux/hwmon-sysfs.h>
+#include <linux/err.h>
+#include <linux/mutex.h>
+#include <linux/jiffies.h>
 
-#define NCT7363_REG_FUNC_CFG_BASE(x)	(0x20 + (x))
-#define NCT7363_REG_PWMEN_BASE(x)	(0x38 + (x))
-#define NCT7363_REG_FANINEN_BASE(x)	(0x41 + (x))
-#define NCT7363_REG_FANINX_HVAL(x)	(0x48 + ((x) * 2))
-#define NCT7363_REG_FANINX_LVAL(x)	(0x49 + ((x) * 2))
-#define NCT7363_REG_FSCPXDUTY(x)	(0x90 + ((x) * 2))
+/* Addresses to scan */
+static unsigned short normal_i2c[] = { 0x20, 0x21, 0x22, 0x23, I2C_CLIENT_END };
 
-#define PWM_SEL(x)			(BIT(0) << ((x) * 2))
-#define FANIN_SEL(x)			(BIT(1) << ((x < 8) ? \
-					 (((x) + 8) * 2) : \
-					 (((x) % 8) * 2)))
-#define VALUE_TO_REG(x, y)		(((x) >> ((y) * 8)) & 0xFF)
+/* Insmod parameters */
+static unsigned short force_subclients[4];
+module_param_array(force_subclients, short, NULL, 0);
+MODULE_PARM_DESC(force_subclients, "List of subclient addresses: "
+		       "{bus, clientaddr, subclientaddr1, subclientaddr2}");
 
-#define NCT7363_FANINX_LVAL_MASK	GENMASK(4, 0)
-#define NCT7363_FANIN_MASK		GENMASK(12, 0)
+static bool reset;
+module_param(reset, bool, 0);
+MODULE_PARM_DESC(reset, "Set to 1 to reset chip, not recommended");
 
-#define NCT7363_PWM_COUNT		16
+#define DRVNAME "nct736x"
+#define NCT7362_REG_DID   0xFD
+#define NCT7362_ID_MASK	0xFFFFFF
+#define NCT7362_ID		(0x491988 & NCT7362_ID_MASK)	/* Chip ID */
 
-static inline unsigned int FAN_FROM_REG(u16 val)
+#define NCT7363_REG_OUTPUT_PORT 0x1
+#define NCT7363_REG_OUTIN_CONFIG 0x3
+
+#define NCT7362_REG_I2C_ADDR    0x46
+#define NCT7362_REG_GLOBAL_CONTROL  0x00
+
+#define NCT7362_REG_FAN(index)    (0x48 + (index)*2 )
+#define NCT7362_REG_FAN_LSB(index)    (0x49 + (index)*2 )
+#define NCT7362_FAN_LSB_MASK	0x1F
+#define NCT7362_REG_PWM_CTRL1 0x38
+#define NCT7362_REG_PWM_CTRL2 0x39
+#define NCT7362_REG_FANIN_CTRL1 0x41
+#define NCT7362_REG_FANIN_CTRL2 0x42
+
+#define NCT7362_REG_PWM(index)    (0x90 + (index)*2 )
+
+static int set_pwm_time=0;
+
+static inline unsigned long FAN_FROM_REG(u16 val)
 {
-	if (val == NCT7363_FANIN_MASK || val == 0)
-		return 0;
-
+	if ((val >= 0x1fff) || (val == 0))
+		return	0;
 	return (1350000UL / val);
 }
 
-enum chips { nct7363, nct7362 };
+static inline u16 FAN_TO_REG(long rpm)
+{
+	if (rpm <= 0)
+		return 0x1fff;
+	return clamp_val((1350000 + (rpm >> 1)) / rpm, 1, 0x1fff);
+}
 
-static const struct i2c_device_id nct7363_id[] = {
-	{ "nct7363", nct7363 },
-	{ "nct7362", nct7362 },
-	{ },
+static inline unsigned long TIME_FROM_REG(u8 reg)
+{
+	return (reg * 100);
+}
+
+static inline u8 TIME_TO_REG(unsigned long val)
+{
+	return clamp_val((val + 50) / 100, 0, 0xff);
+}
+
+enum chip_types {nct7362d,nct7363};
+
+struct nct7362_data {
+	struct device *hwmon_dev;
+	struct mutex update_lock;
+	unsigned long last_updated;	/* In jiffies */
+	enum chip_types chip_type; /* For recording what the chip is */ 
+	const struct attribute_group *groups[3];
+
+	struct i2c_client *client;
+
+	u16 has_fan;	/* Enable fan 0-16 */
+	u16 fan[16];		/* Register value combine */
+
+	u16 has_pwm;	/* Enable pwm 0-16 */
+	u16 pwm[16];		/* Register value combine */
+
+	char valid;
 };
-MODULE_DEVICE_TABLE(i2c, nct7363_id);
 
-static const struct of_device_id nct7363_of_match[] = {
-	{ .compatible = "nuvoton,nct7363", .data = (void *)nct7363 },
-	{ .compatible = "nuvoton,nct7362", .data = (void *)nct7362 },
-	{ },
-};
-MODULE_DEVICE_TABLE(of, nct7363_of_match);
+static u8 nct7362_read_value(struct i2c_client *client, u16 reg);
+static int nct7362_write_value(struct i2c_client *client, u16 reg, u8 value);
+static int nct7362_probe(struct i2c_client *client);
+static int nct7362_detect(struct i2c_client *client,
+			 struct i2c_board_info *info);
+//static int nct7362_remove(struct i2c_client *client);
 
-struct nct7363_data {
-	struct regmap		*regmap;
-	struct mutex		lock;		/* protect register access */
+static void nct7362_init_client(struct i2c_client *client);
+static struct nct7362_data *nct7362_update_device(struct device *dev);
 
-	u16			fanin_mask;
-	u16			pwm_mask;
-};
 
-static int nct7363_read_fan(struct device *dev, u32 attr, int channel,
-			    long *val)
+#define ALARM_STATUS      0
+
+static ssize_t
+show_fan(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct nct7363_data *data = dev_get_drvdata(dev);
-	unsigned int hi, lo, rpm;
-	int ret = 0;
-	u16 cnt;
+	struct sensor_device_attribute_2 *sensor_attr =
+	    to_sensor_dev_attr_2(attr);
+	int index = sensor_attr->index;
+	struct nct7362_data *data = nct7362_update_device(dev);
+	u16 val;
 
-	switch (attr) {
-	case hwmon_fan_input:
-		/*
-		 * High-byte register should be read first to latch
-		 * synchronous low-byte value
-		 */
-		mutex_lock(&data->lock);
-		ret = regmap_read(data->regmap,
-				  NCT7363_REG_FANINX_HVAL(channel), &hi);
-		if (ret)
-			goto out;
+	val = data->fan[index] & 0x1fff;
 
-		ret = regmap_read(data->regmap,
-				  NCT7363_REG_FANINX_LVAL(channel), &lo);
-		if (ret)
-			goto out;
-		mutex_unlock(&data->lock);
+	return sprintf(buf, "%lu\n", FAN_FROM_REG(val));
+}
 
-		cnt = (hi << 5) | (lo & NCT7363_FANINX_LVAL_MASK);
-		rpm = FAN_FROM_REG(cnt);
-		*val = (long)rpm;
+static ssize_t
+show_pwm(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sensor_device_attribute_2 *sensor_attr =
+	    to_sensor_dev_attr_2(attr);
+	int index = sensor_attr->index;
+	struct nct7362_data *data = nct7362_update_device(dev);
+	u16 val;
+
+	val = data->pwm[index] & 0xff;
+
+	return sprintf(buf, "%u\n", (val));
+}
+
+static ssize_t
+store_pwm(struct device *dev, struct device_attribute *attr,
+	 const char *buf, size_t count)
+{
+	struct sensor_device_attribute_2 *sensor_attr =
+	    to_sensor_dev_attr_2(attr);
+	int index = sensor_attr->index;
+	struct nct7362_data *data = nct7362_update_device(dev);
+	struct i2c_client *client = data->client;
+	unsigned long tmpVal;
+	int err;
+
+	err = kstrtoul(buf, 10, &tmpVal);
+	if (err){
 		return 0;
-	default:
-		return -EOPNOTSUPP;
+	}	
+	mutex_lock(&data->update_lock);
+	data->pwm[index] = tmpVal;
+	nct7362_write_value(client, NCT7362_REG_PWM(index), tmpVal & 0xFF);
+	//add for setting GPIO03 H->L when set pwm in the first time
+	printk("store_pwm a==%d\n",set_pwm_time);
+	if(set_pwm_time == 0)
+	{
+		u8 data=0;
+
+		data=nct7362_read_value(client, NCT7363_REG_OUTIN_CONFIG);
+		printk("NCT7363_REG_OUTIN_CONFIG==%d\n",data);
+		data &= ~(1<<3);
+		nct7362_write_value(client, NCT7363_REG_OUTIN_CONFIG, data);
+		printk("NCT7363_REG_OUTIN_CONFIG==%d\n",data);
+
+		data=nct7362_read_value(client, NCT7363_REG_OUTPUT_PORT);
+		printk("NCT7363_REG_OUTPUT_PORT==%d\n",data);
+		data &= ~(1<<3);
+		nct7362_write_value(client, NCT7363_REG_OUTPUT_PORT, data);
+		printk("NCT7363_REG_OUTPUT_PORT==%d\n",data);
 	}
 
-out:
-	mutex_unlock(&data->lock);
-	return ret;
+	//test
+	set_pwm_time++;
+	printk("set_pwm_time++==%d\n",set_pwm_time);
+
+	mutex_unlock(&data->update_lock);
+
+	return count;
 }
 
-static umode_t nct7363_fan_is_visible(const void *_data, u32 attr, int channel)
+static umode_t nct7362_fan_is_visible(struct kobject *kobj,
+				     struct attribute *attr, int index)
 {
-	const struct nct7363_data *data = _data;
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct nct7362_data *data = dev_get_drvdata(dev);
+	int fan = index;	/* fan index */
 
-	switch (attr) {
-	case hwmon_fan_input:
-		if (data->fanin_mask & BIT(channel))
-			return 0444;
-		break;
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int nct7363_read_pwm(struct device *dev, u32 attr, int channel,
-			    long *val)
-{
-	struct nct7363_data *data = dev_get_drvdata(dev);
-	unsigned int regval;
-	int ret;
-
-	switch (attr) {
-	case hwmon_pwm_input:
-		ret = regmap_read(data->regmap,
-				  NCT7363_REG_FSCPXDUTY(channel), &regval);
-		if (ret)
-			return ret;
-
-		*val = (long)regval;
+	if (!(data->has_fan & (1 << fan)))
 		return 0;
-	default:
-		return -EOPNOTSUPP;
-	}
+
+	return attr->mode;
 }
 
-static int nct7363_write_pwm(struct device *dev, u32 attr, int channel,
-			     long val)
+static umode_t nct7362_pwm_is_visible(struct kobject *kobj,
+				     struct attribute *attr, int index)
 {
-	struct nct7363_data *data = dev_get_drvdata(dev);
-	int ret;
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct nct7362_data *data = dev_get_drvdata(dev);
+	int pwm = index;	/* pwm index */
 
-	switch (attr) {
-	case hwmon_pwm_input:
-		if (val < 0 || val > 255)
-			return -EINVAL;
-
-		ret = regmap_write(data->regmap,
-				   NCT7363_REG_FSCPXDUTY(channel), val);
-
-		return ret;
-
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
-static umode_t nct7363_pwm_is_visible(const void *_data, u32 attr, int channel)
-{
-	const struct nct7363_data *data = _data;
-
-	switch (attr) {
-	case hwmon_pwm_input:
-		if (data->pwm_mask & BIT(channel))
-			return 0644;
-		break;
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int nct7363_read(struct device *dev, enum hwmon_sensor_types type,
-			u32 attr, int channel, long *val)
-{
-	switch (type) {
-	case hwmon_fan:
-		return nct7363_read_fan(dev, attr, channel, val);
-	case hwmon_pwm:
-		return nct7363_read_pwm(dev, attr, channel, val);
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
-static int nct7363_write(struct device *dev, enum hwmon_sensor_types type,
-			 u32 attr, int channel, long val)
-{
-	switch (type) {
-	case hwmon_pwm:
-		return nct7363_write_pwm(dev, attr, channel, val);
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
-static umode_t nct7363_is_visible(const void *data,
-				  enum hwmon_sensor_types type,
-				  u32 attr, int channel)
-{
-	switch (type) {
-	case hwmon_fan:
-		return nct7363_fan_is_visible(data, attr, channel);
-	case hwmon_pwm:
-		return nct7363_pwm_is_visible(data, attr, channel);
-	default:
+	if (!(data->has_pwm & (1 << pwm)))
 		return 0;
-	}
+	return attr->mode;
 }
 
-static const struct hwmon_channel_info *nct7363_info[] = {
-	HWMON_CHANNEL_INFO(fan,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT,
-			   HWMON_F_INPUT),
-	HWMON_CHANNEL_INFO(pwm,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT),
+#define NOT_USED			-1
+
+#define FAN_INPUT     0
+#define SENSOR_DEV_ATTR_FAN(index)						\
+		static SENSOR_DEVICE_ATTR_2(fan##index##_input, S_IRUGO, show_fan,		\
+			NULL, FAN_INPUT, index - 1); \
+
+#define DEV_ATTR_ATTR_LIST_FAN(index)	\
+	&sensor_dev_attr_fan##index##_input.dev_attr.attr
+
+SENSOR_DEV_ATTR_FAN(1);
+SENSOR_DEV_ATTR_FAN(2);
+SENSOR_DEV_ATTR_FAN(3);
+SENSOR_DEV_ATTR_FAN(4);
+SENSOR_DEV_ATTR_FAN(5);
+SENSOR_DEV_ATTR_FAN(6);
+SENSOR_DEV_ATTR_FAN(7);
+SENSOR_DEV_ATTR_FAN(8);
+SENSOR_DEV_ATTR_FAN(9);
+SENSOR_DEV_ATTR_FAN(10);
+SENSOR_DEV_ATTR_FAN(11);
+SENSOR_DEV_ATTR_FAN(12);
+SENSOR_DEV_ATTR_FAN(13);
+SENSOR_DEV_ATTR_FAN(14);
+SENSOR_DEV_ATTR_FAN(15);
+SENSOR_DEV_ATTR_FAN(16);
+
+static struct attribute *nct7362_attributes_fan[] = {
+	DEV_ATTR_ATTR_LIST_FAN(1),
+	DEV_ATTR_ATTR_LIST_FAN(2),
+	DEV_ATTR_ATTR_LIST_FAN(3),
+	DEV_ATTR_ATTR_LIST_FAN(4),
+	DEV_ATTR_ATTR_LIST_FAN(5),
+	DEV_ATTR_ATTR_LIST_FAN(6),
+	DEV_ATTR_ATTR_LIST_FAN(7),
+	DEV_ATTR_ATTR_LIST_FAN(8),
+	DEV_ATTR_ATTR_LIST_FAN(9),
+	DEV_ATTR_ATTR_LIST_FAN(10),
+	DEV_ATTR_ATTR_LIST_FAN(11),
+	DEV_ATTR_ATTR_LIST_FAN(12),
+	DEV_ATTR_ATTR_LIST_FAN(13),
+	DEV_ATTR_ATTR_LIST_FAN(14),
+	DEV_ATTR_ATTR_LIST_FAN(15),
+	DEV_ATTR_ATTR_LIST_FAN(16),
 	NULL
 };
 
-static const struct hwmon_ops nct7363_hwmon_ops = {
-	.is_visible = nct7363_is_visible,
-	.read = nct7363_read,
-	.write = nct7363_write,
+static const struct attribute_group nct7362_group_fan = {
+	.attrs = nct7362_attributes_fan,
+	.is_visible = nct7362_fan_is_visible,
 };
 
-static const struct hwmon_chip_info nct7363_chip_info = {
-	.ops = &nct7363_hwmon_ops,
-	.info = nct7363_info,
+#define PWM_OUTPUT     0
+#define SENSOR_DEV_ATTR_PWM(index) \
+	static SENSOR_DEVICE_ATTR_2(pwm##index, S_IRUGO | S_IWUSR, show_pwm, \
+			store_pwm, PWM_OUTPUT, index - 1);
+
+#define DEV_ATTR_ATTR_LIST_PWM(index)	\
+	&sensor_dev_attr_pwm##index.dev_attr.attr
+
+SENSOR_DEV_ATTR_PWM(1);
+SENSOR_DEV_ATTR_PWM(2);
+SENSOR_DEV_ATTR_PWM(3);
+SENSOR_DEV_ATTR_PWM(4);
+SENSOR_DEV_ATTR_PWM(5);
+SENSOR_DEV_ATTR_PWM(6);
+SENSOR_DEV_ATTR_PWM(7);
+SENSOR_DEV_ATTR_PWM(8);
+SENSOR_DEV_ATTR_PWM(9);
+SENSOR_DEV_ATTR_PWM(10);
+SENSOR_DEV_ATTR_PWM(11);
+SENSOR_DEV_ATTR_PWM(12);
+SENSOR_DEV_ATTR_PWM(13);
+SENSOR_DEV_ATTR_PWM(14);
+SENSOR_DEV_ATTR_PWM(15);
+SENSOR_DEV_ATTR_PWM(16);
+
+static struct attribute *nct7362_attributes_pwm[] = {
+	DEV_ATTR_ATTR_LIST_PWM(1),
+	DEV_ATTR_ATTR_LIST_PWM(2),
+	DEV_ATTR_ATTR_LIST_PWM(3),
+	DEV_ATTR_ATTR_LIST_PWM(4),
+	DEV_ATTR_ATTR_LIST_PWM(5),
+	DEV_ATTR_ATTR_LIST_PWM(6),
+	DEV_ATTR_ATTR_LIST_PWM(7),
+	DEV_ATTR_ATTR_LIST_PWM(8),
+	DEV_ATTR_ATTR_LIST_PWM(9),
+	DEV_ATTR_ATTR_LIST_PWM(10),
+	DEV_ATTR_ATTR_LIST_PWM(11),
+	DEV_ATTR_ATTR_LIST_PWM(12),
+	DEV_ATTR_ATTR_LIST_PWM(13),
+	DEV_ATTR_ATTR_LIST_PWM(14),
+	DEV_ATTR_ATTR_LIST_PWM(15),
+	DEV_ATTR_ATTR_LIST_PWM(16),
+	NULL
 };
 
-static int nct7363_init_chip(struct nct7363_data *data)
+static const struct attribute_group nct7362_group_pwm = {
+	.attrs = nct7362_attributes_pwm,
+	.is_visible = nct7362_pwm_is_visible,
+};
+
+static void nct7362_init_client(struct i2c_client *client)
 {
-	u32 func_config = 0;
-	int i, ret;
-
-	/* Pin Function Configuration */
-	for (i = 0; i < NCT7363_PWM_COUNT; i++) {
-		if (data->pwm_mask & BIT(i))
-			func_config |= PWM_SEL(i);
-		if (data->fanin_mask & BIT(i))
-			func_config |= FANIN_SEL(i);
-	}
-
-	for (i = 0; i < 4; i++) {
-		ret = regmap_write(data->regmap, NCT7363_REG_FUNC_CFG_BASE(i),
-				   VALUE_TO_REG(func_config, i));
-		if (ret < 0)
-			return ret;
-	}
-
-	/* PWM and FANIN Monitoring Enable */
-	for (i = 0; i < 2; i++) {
-		ret = regmap_write(data->regmap, NCT7363_REG_PWMEN_BASE(i),
-				   VALUE_TO_REG(data->pwm_mask, i));
-		if (ret < 0)
-			return ret;
-
-		ret = regmap_write(data->regmap, NCT7363_REG_FANINEN_BASE(i),
-				   VALUE_TO_REG(data->fanin_mask, i));
-		if (ret < 0)
-			return ret;
-	}
-
-	return 0;
+	// init /- pwm0 fanin9 10 GPIO3 -/- fanin 12 13 14 15 -/- pwm8 fanin1 2 3 -/- fanin 4 5 6 pwm15 -/
+	nct7362_write_value(client, 0x20, 0x29);
+	nct7362_write_value(client, 0x21, 0xAA);
+	nct7362_write_value(client, 0x22, 0xA9);
+	nct7362_write_value(client, 0x23, 0x6A);
+	nct7362_write_value(client, 0x38, 0x01);
+	nct7362_write_value(client, 0x39, 0x81);
+	nct7362_write_value(client, 0x41, 0x7E);
+	nct7362_write_value(client, 0x42, 0xF6);
 }
 
-static int nct7363_present_pwm_fanin(struct device *dev,
-				     struct device_node *child,
-				     struct nct7363_data *data)
+static int __init nct7362d_find(int addr, struct i2c_client *client, struct i2c_board_info *info)
 {
-	u8 fanin_ch[NCT7363_PWM_COUNT];
-	struct of_phandle_args args;
-	int ret, fanin_cnt;
-	u8 ch, index;
+	int err;
+	u32 devid = 0;
 
-	ret = of_parse_phandle_with_args(child, "pwms", "#pwm-cells",
-					 0, &args);
-	if (ret)
-		return ret;
+    struct i2c_adapter *adapter = client->adapter;
 
-	if (args.args[0] >= NCT7363_PWM_COUNT)
-		return -EINVAL;
-	data->pwm_mask |= BIT(args.args[0]);
+	err = -ENODEV;
 
-	fanin_cnt = of_property_count_u8_elems(child, "tach-ch");
-	if (fanin_cnt < 1 || fanin_cnt > NCT7363_PWM_COUNT)
-		return -EINVAL;
+    devid = (nct7362_read_value(client, addr) & 0xFF);
+    devid = (devid<<8) | (nct7362_read_value(client, addr+1) & 0xFF);
+    devid = (devid<<8) | (nct7362_read_value(client, addr+2) & 0xFF);
+    devid = devid & NCT7362_ID_MASK;
 
-	ret = of_property_read_u8_array(child, "tach-ch", fanin_ch, fanin_cnt);
-	if (ret)
-		return ret;
-
-	for (ch = 0; ch < fanin_cnt; ch++) {
-		index = fanin_ch[ch];
-		if (index >= NCT7363_PWM_COUNT)
-			return -EINVAL;
-		data->fanin_mask |= BIT(index);
+	switch (devid) {
+	case NCT7362_ID:
+        /* Fill in the remaining client fields and put into the global list */
+    	strlcpy(info->type, "nct7362", I2C_NAME_SIZE);
+        dev_info(&adapter->dev, "Detected Nuvoton %s chip at 0x%02x\n", "nct7362", client->addr);
+		break;
+	default:
+		pr_info(DRVNAME ": Unsupported device 0x%08x\n", devid);
+		goto err;
 	}
+	err = 0;
 
-	return 0;
+err:
+	return err;
 }
 
-static const struct regmap_config nct7363_regmap_config = {
-	.reg_bits = 8,
-	.val_bits = 8,
-};
-
-static int nct7363_probe(struct i2c_client *client)
+/* Return 0 if detection is successful, -ENODEV otherwise */
+static int nct7362_detect(struct i2c_client *client,
+			 struct i2c_board_info *info)
 {
-	struct device *dev = &client->dev;
-	struct device_node *child;
-	struct nct7363_data *data;
-	struct device *hwmon_dev;
 	int ret;
 
-	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
-	if (!data)
+	printk(DRVNAME ": nct7362_detect: nct7362_detect...\n");
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
+		return -ENODEV;
+	}
+    ret = nct7362d_find(NCT7362_REG_DID, client, info);
+    if ( ret != 0){
+		printk(DRVNAME ": is nct7363 ...\n");
+		strlcpy(info->type, "nct7363", I2C_NAME_SIZE);
+        //return ret; //error
+    }
+    
+	return 0;
+}
+
+#define TMP_MASK 0x3
+static int nct7362_probe(struct i2c_client *client)
+{
+	int i;
+	struct device *dev = &client->dev;
+	struct nct7362_data *data;
+	struct device *hwmon_dev;
+
+	printk("nct7362: nct7362_probe\n");
+
+	if (!(data = devm_kzalloc(dev,sizeof(struct nct7362_data), GFP_KERNEL))) {
 		return -ENOMEM;
-
-	data->regmap = devm_regmap_init_i2c(client, &nct7363_regmap_config);
-	if (IS_ERR(data->regmap))
-		return PTR_ERR(data->regmap);
-
-	mutex_init(&data->lock);
-
-	for_each_child_of_node(dev->of_node, child) {
-		ret = nct7363_present_pwm_fanin(dev, child, data);
-		if (ret) {
-			of_node_put(child);
-			return ret;
-		}
 	}
 
-	/* Initialize the chip */
-	ret = nct7363_init_chip(data);
-	if (ret)
-		return ret;
+	i2c_set_clientdata(client, data);
+	mutex_init(&data->update_lock);
 
-	hwmon_dev =
-		devm_hwmon_device_register_with_info(dev, client->name, data,
-						     &nct7363_chip_info, NULL);
+	data->client = client; 
+
+	/* Initialize the chip */
+	nct7362_init_client(client);
+	nct7362_write_value(client, 0x90, 0x10); // Set Default Pwm0 50%
+	nct7362_write_value(client, 0xa0, 0x10); // Set Default Pwm8 50%
+	nct7362_write_value(client, 0xae, 0x10); // Set Default Pwm15 50%
+
+	/* Check chip type*/
+	data->chip_type = nct7363;
+	
+	data->has_fan = nct7362_read_value(client, NCT7362_REG_FANIN_CTRL1);
+	data->has_fan |= nct7362_read_value(client, NCT7362_REG_FANIN_CTRL2) << 8;
+	data->has_pwm = nct7362_read_value(client, NCT7362_REG_PWM_CTRL1);
+	data->has_pwm |= nct7362_read_value(client, NCT7362_REG_PWM_CTRL2) << 8;
+	//data->has_pwm = data->has_fan;
+
+	/* Multi-Function detecting for Volt and TR/TD.
+	   Just deal with the DISABLE in has_xxxx because
+	   if it is not monitored, multi-function selection is useless.*/
+
+	/* First update fan */
+	for (i = 0; i < ARRAY_SIZE(data->fan); i++) {
+		if (!(data->has_fan & (1 << i))) {
+			continue;
+		}
+		data->fan[i] =
+			((u16)nct7362_read_value(client, NCT7362_REG_FAN(i))) << 5;
+		data->fan[i] |=
+		  nct7362_read_value(client, NCT7362_REG_FAN_LSB(i)) & NCT7362_FAN_LSB_MASK;
+	}
+	/* First update pwm */
+	for (i = 0; i < ARRAY_SIZE(data->pwm); i++) {
+		if (!(data->has_pwm & (1 << i))) {
+			continue;
+		}
+		data->pwm[i] =
+			((u16)nct7362_read_value(client, NCT7362_REG_PWM(i)));
+	}
+
+	/* Prepare for sysfs hooks */
+	data->groups[0] = &nct7362_group_fan;
+	data->groups[1] = &nct7362_group_pwm;
+	data->groups[2] = NULL;
+
+	hwmon_dev = devm_hwmon_device_register_with_groups(dev,
+					client->name,
+					data, data->groups);
 	return PTR_ERR_OR_ZERO(hwmon_dev);
 }
 
-static struct i2c_driver nct7363_driver = {
-	.class = I2C_CLASS_HWMON,
-	.driver = {
-		.name = "nct7363",
-		.of_match_table = nct7363_of_match,
-	},
-	.probe = nct7363_probe,
-	.id_table = nct7363_id,
+static struct nct7362_data *nct7362_update_device(struct device *dev)
+{
+	struct nct7362_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
+	int i;
+
+	mutex_lock(&data->update_lock);
+	nct7362_init_client(client);
+	if (!(time_after(jiffies, data->last_updated + HZ * 2)
+	      || !data->valid))
+		goto END;
+
+	/* Update fan */
+	for (i = 0; i < ARRAY_SIZE(data->fan); i++) {
+		if (!(data->has_fan & (1 << i))) {
+			continue;
+		}
+		data->fan[i] =
+			((u16)nct7362_read_value(client, NCT7362_REG_FAN(i))) << 5;
+		data->fan[i] |=
+		  nct7362_read_value(client, NCT7362_REG_FAN_LSB(i)) & NCT7362_FAN_LSB_MASK;
+	}
+	/* Update pwm */
+	for (i = 0; i < ARRAY_SIZE(data->pwm); i++) {
+		if (!(data->has_pwm & (1 << i))) {
+			continue;
+		}
+		data->pwm[i] =
+			((u16)nct7362_read_value(client, NCT7362_REG_PWM(i)));
+	}
+	data->last_updated = jiffies;
+	data->valid = 1;
+
+END:
+	mutex_unlock(&data->update_lock);
+	return data;
+}
+
+/* Ignore the possibility that somebody change bank outside the driver
+   Must be called with data->update_lock held, except during initialization */
+static u8 nct7362_read_value(struct i2c_client *client, u16 reg)
+{
+	u8 res = 0xff;
+
+	res = i2c_smbus_read_byte_data(client, reg & 0xff);
+	return res;
+}
+
+/* Must be called with data->update_lock held, except during initialization */
+static int nct7362_write_value(struct i2c_client *client, u16 reg, u8 value)
+{
+	int res;
+
+	res = i2c_smbus_write_byte_data(client, reg & 0xff, value);
+	return res;
+}
+
+static const struct i2c_device_id nct7362_id[] = {
+	{ "nct7362", nct7362d },
+	{ "nct7363", nct7363  },
+	{},
 };
 
-module_i2c_driver(nct7363_driver);
+//MODULE_DEVICE_TABLE(i2c, nct7362_id);
 
-MODULE_AUTHOR("CW Ho <cwho@nuvoton.com>");
-MODULE_AUTHOR("Ban Feng <kcfeng0@nuvoton.com>");
-MODULE_DESCRIPTION("NCT7363 Hardware Monitoring Driver");
+static const struct of_device_id nct7362_of_match[] = {
+	{ .compatible = "nct,nct7362",.data = (void *)nct7362d, },
+	{ .compatible = "nct,nct7363",.data = (void *)nct7363, },
+	{}
+};
+MODULE_DEVICE_TABLE(of, nct7362_of_match);
+
+static struct i2c_driver nct7362_driver = {
+	.driver = {
+		   .owner = THIS_MODULE,
+		   .name = DRVNAME,
+		   .of_match_table = of_match_ptr(nct7362_of_match),
+	},
+	.class		= I2C_CLASS_HWMON,
+	.probe		= nct7362_probe,
+	//.remove		= nct7362_remove,
+	.id_table	= nct7362_id,
+	.detect		= nct7362_detect,
+	.address_list	= normal_i2c,
+};
+
+#ifdef DBG_INIT_FUNCTION
+
+static int __init sensors_nct7362_init(void)
+{
+	printk("nct7362: sensors_nct7362_init\n");
+
+	return i2c_add_driver(&nct7362_driver);
+}
+
+static void __exit sensors_nct7362_exit(void)
+{
+	printk("nct7362: sensors_nct7362_exit\n");
+
+	i2c_del_driver(&nct7362_driver);
+}
+
+module_init(sensors_nct7362_init);
+module_exit(sensors_nct7362_exit);
+
+#else
+
+module_i2c_driver(nct7362_driver);
+
+#endif
+
+MODULE_AUTHOR("Sheng-Yuan Huang");
+MODULE_DESCRIPTION("NCT7362 driver");
 MODULE_LICENSE("GPL");
