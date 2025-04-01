@@ -22,10 +22,10 @@ static const struct of_device_id aspeed_usb_phy_dt_ids[] = {
 		.compatible = "aspeed,ast2600-uphyb",
 	},
 	{
-		.compatible = "aspeed,ast2700-phy2a",
+		.compatible = "aspeed,ast2700-uphy2a",
 	},
 	{
-		.compatible = "aspeed,ast2700-phy2b",
+		.compatible = "aspeed,ast2700-uphy2b",
 	},
 	{ }
 };
@@ -56,7 +56,7 @@ static int aspeed_usb_phy_probe(struct platform_device *pdev)
 	}
 
 	if (of_device_is_compatible(pdev->dev.of_node,
-				    "aspeed,ast2700-phy2a")) {
+				    "aspeed,ast2700-uphy2a")) {
 		/* Check SCU220[0] USB vHubA1 controller reset is deassert */
 		regmap_read(scu, 0x220, &val);
 		if ((val & BIT(0)))
@@ -64,10 +64,10 @@ static int aspeed_usb_phy_probe(struct platform_device *pdev)
 	}
 
 	if (of_device_is_compatible(pdev->dev.of_node,
-				    "aspeed,ast2700-phy2b")) {
-		/* Check SCU220[2] USB vHubB1 controller reset is deassert */
+				    "aspeed,ast2700-uphy2b")) {
+		/* Check SCU220[3] USB vHubB1 controller reset is deassert */
 		regmap_read(scu, 0x220, &val);
-		if ((val & BIT(2)))
+		if ((val & BIT(3)))
 			return -EPROBE_DEFER;
 	}
 
@@ -111,3 +111,4 @@ module_platform_driver(aspeed_usb_phy_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Neal Liu <neal_liu@aspeedtech.com>");
+

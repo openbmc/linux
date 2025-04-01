@@ -11,5 +11,4 @@ obj-$(CONFIG_ASPEED_UDMA)		+= aspeed-udma.o
 obj-$(CONFIG_AST2600_ESPI)              += ast2600-espi.o
 obj-$(CONFIG_ASPEED_AST2700_ESPI)	+= ast2700-espi.o
 obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-phy.o
-obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-phy3.o
 obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-hp.o
