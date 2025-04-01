@@ -49,6 +49,16 @@
 #define DIMM_BASE_ID          (0x80)
 #define DIMM_TEMP_OFFSET      (21)
 
+/* to hold the data.in, and data.out fields of for
+ * i3c_transfer to work when the MIPI driver is in
+ * DMA mode.
+ */
+struct i3c_sbrmi_data {
+	u32 reg;
+	u32 val;
+};
+static struct kmem_cache *i3c_sbrmi_cache;
+
 static int configure_regmap(struct apml_sbrmi_device *rmi_dev);
 
 enum sbrmi_msg_id {
@@ -462,18 +472,39 @@ static int sbrmi_i2c_probe(struct i2c_client *client)
 static int sbrmi_i3c_reg_read(struct i3c_device *i3cdev, int reg_size, u32 *val)
 {
 	struct i3c_priv_xfer xfers[I3C_I2C_MSG_XFER_SIZE];
+	struct i3c_sbrmi_data *i3c_data;
 	int reg = SBRMI_REV;
 	int val_size = SBRMI_REG_DATA_SIZE;
+	int rc = -1;
+
+	i3c_data = kmem_cache_alloc(i3c_sbrmi_cache, GFP_KERNEL);
+	if (!i3c_data) {
+		printk(KERN_ERR "sbrmi_i3c_reg_read():kmem_cache_alloc() failed.\n");
+		return -ENOMEM;
+	}
+	i3c_data->val = 0;
+	i3c_data->reg = 0;
 
 	xfers[0].rnw = false;
 	xfers[0].len = reg_size;
-	xfers[0].data.out = &reg;
+	i3c_data->reg = reg;
+	xfers[0].data.out = &i3c_data->reg;
 
 	xfers[1].rnw = true;
 	xfers[1].len = val_size;
-	xfers[1].data.in = val;
+	xfers[1].data.in = &i3c_data->val;
 
-	return i3c_device_do_priv_xfers(i3cdev, xfers, I3C_I2C_MSG_XFER_SIZE);
+	rc = i3c_device_do_priv_xfers(i3cdev, xfers, I3C_I2C_MSG_XFER_SIZE);
+	if (rc < 0) {
+		/* free */
+		kmem_cache_free(i3c_sbrmi_cache, i3c_data);
+		return rc;
+	}
+	*val = i3c_data->val;
+
+	/* free */
+	kmem_cache_free(i3c_sbrmi_cache, i3c_data);
+	return rc;
 }
 
 static int sbrmi_i3c_identify_reg_addr_size(struct i3c_device *i3cdev, u32 *size, u32 *rev)
@@ -500,7 +531,9 @@ static int sbrmi_i3c_identify_reg_addr_size(struct i3c_device *i3cdev, u32 *size
 		}
 	}
 
-	if (*rev == 0x21)
+	pr_err("sbrmi_i3c_identify_reg_addr_size(): *rev = 0x%x, *size = 0x%x\n",
+		*rev, *size);
+	if ((*rev & 0xff) == 0x21)
 		*size = SBRMI_REG_ADDR_SIZE_TWO_BYTE;
 	else
 		*size = SBRMI_REG_ADDR_SIZE_DEF;
@@ -574,6 +607,7 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 	struct device *dev = &i3cdev->dev;
 	struct device *hwmon_dev;
 	struct apml_sbrmi_device *rmi_dev;
+	int ret;
 
 	dev_info(dev, "SBRMI: PID: %llx\n", i3cdev->desc->info.pid);
 	if (!((i3cdev->desc->info.pid == 0x1000) || (i3cdev->desc->info.pid == 0x22400000002) ||
@@ -608,6 +642,14 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 
 	/* Need to verify for the static address for i3cdev */
 	rmi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
+
+	i3c_sbrmi_cache = kmem_cache_create_usercopy("i3c-data-cache",
+					sizeof(struct i3c_sbrmi_data), 0, 0, 0,
+					sizeof(struct i3c_sbrmi_data), NULL);
+	if (IS_ERR(i3c_sbrmi_cache)) {
+		ret = PTR_ERR(i3c_sbrmi_cache);
+		return -1;
+	}
 
 	init_completion(&rmi_dev->misc_fops_done);
 	return create_misc_rmi_device(rmi_dev, dev);
@@ -686,6 +728,8 @@ static void sbrmi_i3c_remove(struct i3c_device *i3cdev)
 	/* Assign fops and parent of misc dev to NULL */
 	rmi_dev->sbrmi_misc_dev.fops = NULL;
 	rmi_dev->sbrmi_misc_dev.parent = NULL;
+
+	kmem_cache_destroy(i3c_sbrmi_cache);
 
 	dev_info(&i3cdev->dev, "Removed sbrmi_i3c driver\n");
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
