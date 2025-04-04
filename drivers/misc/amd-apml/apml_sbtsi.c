@@ -302,7 +302,8 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 
 	dev_err(dev, "SBTSI: PID: %llx\n", i3cdev->desc->info.pid);
 	if (!((i3cdev->desc->info.pid == 0x0) || (i3cdev->desc->info.pid == 0x22400000001) ||
-		(i3cdev->desc->info.pid == 0x118)))
+		(i3cdev->desc->info.pid == 0x118) || (i3cdev->desc->info.pid == 0x010118) ||
+		(i3cdev->desc->info.pid == 0x01000118) || (i3cdev->desc->info.pid == 0x01010118)))
 	{
 		dev_err(dev, "SBTSI: Error PID: %llx\n", i3cdev->desc->info.pid);
 		return -ENXIO;
@@ -415,8 +416,11 @@ static void sbtsi_i2c_remove(struct i2c_client *client)
 }
 
 static const struct i3c_device_id sbtsi_i3c_id[] = {
-	I3C_DEVICE_EXTRA_INFO(0x112, 0, 0x118, NULL),
-	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x118, NULL),
+                    /* (MID, PARTID, EXTIN, DRVDATA) */
+	I3C_DEVICE_EXTRA_INFO(0, 0x0000, 0x118, NULL), /* P0 - IOD0 - SBTSI */
+	I3C_DEVICE_EXTRA_INFO(0, 0x0001, 0x118, NULL), /* P0 - IOD1 - SBTST */
+	I3C_DEVICE_EXTRA_INFO(0, 0x0100, 0x118, NULL), /* P1 - IOD0 - SBTSI */
+	I3C_DEVICE_EXTRA_INFO(0, 0x0101, 0x118, NULL), /* P1 - IOD1 - SBTSI */
 	I3C_DEVICE_EXTRA_INFO(0x112, 0, 0x1, NULL),
 	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x0, NULL),
 	{}
