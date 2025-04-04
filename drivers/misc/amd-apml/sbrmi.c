@@ -611,7 +611,7 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 
 	dev_info(dev, "SBRMI: PID: %llx\n", i3cdev->desc->info.pid);
 	if (!((i3cdev->desc->info.pid == 0x1000) || (i3cdev->desc->info.pid == 0x22400000002) ||
-	      (i3cdev->desc->info.pid == 0x1118)))
+		(i3cdev->desc->info.pid == 0x1118) || (i3cdev->desc->info.pid == 0x1001118)))
 	{
 		dev_info(dev, "SBRMI: PID Error: %llx\n", i3cdev->desc->info.pid);
 		return -ENXIO;
@@ -752,8 +752,8 @@ static const struct of_device_id __maybe_unused sbrmi_of_match[] = {
 MODULE_DEVICE_TABLE(of, sbrmi_of_match);
 
 static const struct i3c_device_id sbrmi_i3c_id[] = {
-	I3C_DEVICE_EXTRA_INFO(0x112, 0x0, 0x1118, NULL),
-	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x1118, NULL),
+	I3C_DEVICE_EXTRA_INFO(0, 0x000, 0x1118, NULL), /* P0 - IOD0 - SBRMI */
+	I3C_DEVICE_EXTRA_INFO(0, 0x100, 0x1118, NULL), /* P1 - IOD0 - SBRMI */
 	I3C_DEVICE_EXTRA_INFO(0x112, 0x0, 0x2, NULL),
 	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x0, NULL),
 	{}
