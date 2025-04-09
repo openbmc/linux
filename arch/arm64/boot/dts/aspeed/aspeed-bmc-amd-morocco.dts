@@ -1008,6 +1008,31 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 
 &gpio0 {
 	status = "okay";
+
+	/*
+	 * by default the direction of the SEL_P0_SEC_I2C_ROT_BMC (GPIO B0)
+         * is "in". It should be set to "out" and value of "1" for the
+         * I2C bus to be owned by the BMC.
+         */
+	p0_sec_i2c {
+		gpio-hog;
+		gpios = <8 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "SEL_P0_SEC_I2C_ROT_BMC";
+	};
+
+	/*
+	 * by default the direction of the SEL_P1_SEC_I2C_ROT_BMC (GPIO B1)
+         * is "in". It should be set to "out" and value of "1" for the
+         * I2C bus to be owned by the BMC.
+         */
+	p1_sec_i2c {
+		gpio-hog;
+		gpios = <9 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "SEL_P1_SEC_I2C_ROT_BMC";
+	};
+
 	espi_default {
 		gpio-hog;
 		gpios = <10 GPIO_ACTIVE_HIGH>;
