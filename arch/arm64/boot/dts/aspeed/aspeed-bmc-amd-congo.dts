@@ -263,9 +263,6 @@
 	status = "okay";
 	clock-frequency = <400000>;
 
-	/* multiplex with the i3c-0 controller */
-	pinctrl-0 = <&pinctrl_di2c8_default>;
-
 	multi-master;
 	mctp-controller;
 	mctp@10 {
@@ -930,26 +927,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		gpios = <10 GPIO_ACTIVE_HIGH>;
 		output-low;
 		line-name = "espiboot_pin_default";
-	};
-
-	/*
-	 * Hog the following GPIOs so that they dont interfere with the
-         * multiplexed I3C0 controller.
-         * GPIOX0_SCL8_I2CF0SCLI
-         * GPIOX1_SDA8_I2CF0SCLI
-	 */
-	i2c8_scl{
-		gpio-hog;
-		gpios = <184 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "BMC_HPM_I2C_3V3_SCL<0>";
-	};
-
-	i2c8_sda{
-		gpio-hog;
-		gpios = <185 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "BMC_HPM_I2C_3V3_SDA<0>";
 	};
 };
 
