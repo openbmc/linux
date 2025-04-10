@@ -264,10 +264,7 @@
 &i2c8 {
 	// Net name SCM_I2C<0>
 	status = "okay";
-	clock-frequency = <400000>;
-
-	/* multiplex with the i3c-0 controller */
-	pinctrl-0 = <&pinctrl_di2c8_default>;
+        clock-frequency = <400000>;
 
 	multi-master;
 	mctp-controller;
@@ -471,17 +468,7 @@
 &i2c9 {
 	// Net name SCM_I2C<1>
 	status = "okay";
-	clock-frequency = <400000>;
-
-	/* multiplex with the i3c-1 controller */
-	pinctrl-0 = <&pinctrl_di2c9_default>;
-
-	multi-master;
-	mctp-controller;
-	mctp@10 {
-		compatible = "mctp-i2c-controller";
-		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
-	};
+        clock-frequency = <400000>;
 
 	i2cswitch@70 {
 		compatible = "nxp,pca9548";
@@ -1051,46 +1038,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		gpios = <10 GPIO_ACTIVE_HIGH>;
 		output-low;
 		line-name = "espiboot_pin_default";
-	};
-
-	/*
-	 * Hog the following GPIOs so that they dont interfere with the
-         * multiplexed I3C0 controller.
-         * GPIOX0_SCL8_I2CF0SCLI
-         * GPIOX1_SDA8_I2CF0SCLI
-	 */
-	i2c8_scl{
-		gpio-hog;
-		gpios = <184 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "BMC_HPM_I2C_3V3_SCL<0>";
-	};
-
-	i2c8_sda{
-		gpio-hog;
-		gpios = <185 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "BMC_HPM_I2C_3V3_SDA<0>";
-	};
-
-	/*
-	 * Hog the following GPIOs so that they dont interfere with the
-         * multiplexed I3C1 controller.
-         * GPIOX2_SCL9_I2CF0SCLI
-         * GPIOX3_SDA9_CAMBUSSTBY_I2CF0SDAO
-	 */
-	i2c9_scl{
-		gpio-hog;
-		gpios = <186 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "BMC_HPM_I2C_3V3_SCL<1>";
-	};
-
-	i2c9_sda{
-		gpio-hog;
-		gpios = <187 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "BMC_HPM_I2C_3V3_SDA<1>";
 	};
 };
 
