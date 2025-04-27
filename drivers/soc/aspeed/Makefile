@@ -13,3 +13,4 @@ obj-$(CONFIG_ASPEED_AST2700_ESPI)	+= ast2700-espi.o
 obj-$(CONFIG_ASPEED_BMC_DEV)		+= aspeed-bmc-dev.o
 obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-phy.o
 obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-hp.o
+obj-$(CONFIG_ASPEED_MCTP)		+= aspeed-mctp.o
