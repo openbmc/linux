@@ -80,6 +80,18 @@
 			compatible = "shared-dma-pool";
 			no-map;
 		};
+
+		mctp0_reserved: mctp0_reserved@431080000 {
+			reg = <0x4 0x31080000 0x0 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+                };
+
+                mctp1_reserved: mctp1_reserved@431090000 {
+			reg = <0x4 0x31090000 0x0 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+                };
 	};
 	aliases {
 		i2c100 = &NC_1;
@@ -1157,4 +1169,16 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 
 &jtag1 {
 	status = "okay";
+};
+
+&mctp0 {
+	status = "okay";
+	memory-region = <&mctp0_reserved>;
+	mctp-controller;
+};
+
+&mctp1 {
+	status = "okay";
+	memory-region = <&mctp1_reserved>;
+	mctp-controller;
 };
