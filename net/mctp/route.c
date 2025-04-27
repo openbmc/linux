@@ -896,8 +896,10 @@ int mctp_local_output(struct sock *sk, struct mctp_route *rt,
 		rt->dev = __mctp_dev_get(dev);
 		rcu_read_unlock();
 
-		if (!rt->dev)
+		if (!rt->dev) {
+			rc = -ENODEV;
 			goto out_release;
+		}
 
 		/* establish temporary route - we set up enough to keep
 		 * mctp_route_output happy
