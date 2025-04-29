@@ -639,17 +639,17 @@
 
 			core0run@40 {
 				//P0_VDD_CORE_0_RUN
-				compatible = "isil,isl68137";
+				compatible = "raa229639";
 				reg = <0x40>;
 			};
 			core1run@41 {
 				//P0_VDD_CORE_1_RUN
-				compatible = "isil,isl68137";
+				compatible = "raa229639";
 				reg = <0x41>;
 			};
 			vddvddiorun@42 {
 				//P0_VDD_VDDIO_RUN
-				compatible = "isil,isl68137";
+				compatible = "raa229641";
 				reg = <0x42>;
 			};
 			vdd33s5run@46 {
@@ -660,6 +660,7 @@
 			vdd18s5run@47 {
 				//P0_VDD_18_S5_RUN
 				compatible = "pmbus";
+				reg = <0x47>;
 			};
 		};
 
