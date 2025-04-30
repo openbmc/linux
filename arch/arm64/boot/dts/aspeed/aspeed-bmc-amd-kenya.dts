@@ -618,7 +618,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 &ltpi0_gpio {
 	status = "okay";
 	gpio-line-names =
-		/*00-07*/ "","HPM_STBY_EN","",
+		/*00-07*/ "","","",
 			"P0_MGMT_ASSERT_CLR_CMOS","P0_MGMT_MON_PROCHOT_L","P0_MGMT_ASSERT_PROCHOT_L",
 			"P0_MGMT_MON_RSMRST_L","P0_ASSERT_RSMRST",
 		/*08-15*/ "P0_MGMT_MON_THERMTRIP_L","P0_MGMT_ASSERT_THERMTRIP_L","P0_PRESENT_L",
@@ -638,7 +638,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		/*80-87*/ "","","","","","","","",
 		/*88-95*/ "","","","","","","","",
 		/*96-103*/ "","","","","","","","",
-		/*104-111*/ "","","","","","","","",
+		/*104-111*/ "","","","","","HPM_STBY_EN","","",
 		/*112-119*/ "","","","","","","","",
 		/*120-127*/ "","","","","","","","",
 		/*128-135*/ "P0_MGMT_MON_RST_BTN_L","P0_MGMT_ASSERT_RST_BTN_L","P0_MGMT_MON_PWR_BTN_L",
