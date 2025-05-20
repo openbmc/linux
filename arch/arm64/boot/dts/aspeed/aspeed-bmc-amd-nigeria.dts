@@ -643,6 +643,34 @@
         };
 };
 
+/* P1-SEC */
+&i2c14 {
+        status = "okay";
+        pinctrl-0 = <&pinctrl_di2c14_default>;
+        clock-frequency = <400000>;
+
+        multi-master;
+        mctp-controller;
+        mctp@10 {
+                compatible = "mctp-i2c-controller";
+                reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+        };
+};
+
+/* P0-SEC */
+&i2c15 {
+        status = "okay";
+        pinctrl-0 = <&pinctrl_di2c15_default>;
+        clock-frequency = <400000>;
+
+        multi-master;
+        mctp-controller;
+        mctp@10 {
+                compatible = "mctp-i2c-controller";
+                reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+        };
+};
+
 &i3c4 {
 	status = "okay";
 	initial-role = "primary";
@@ -794,6 +822,30 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		output-low;
 		line-name = "espiboot_pin_default";
 	};
+
+	/*
+         * by default the direction of the SEL_P0_SEC_I2C_ROT_BMC (GPIO B0)
+         * is "in". It should be set to "out" and value of "1" for the
+         * I2C bus to be owned by the BMC.
+         */
+        p0_sec_i2c {
+                gpio-hog;
+                gpios = <8 GPIO_ACTIVE_HIGH>;
+                output-high;
+                line-name = "SEL_P0_SEC_I2C_ROT_BMC";
+        };
+
+        /*
+         * by default the direction of the SEL_P1_SEC_I2C_ROT_BMC (GPIO B1)
+         * is "in". It should be set to "out" and value of "1" for the
+         * I2C bus to be owned by the BMC.
+         */
+        p1_sec_i2c {
+                gpio-hog;
+                gpios = <9 GPIO_ACTIVE_HIGH>;
+                output-high;
+                line-name = "SEL_P1_SEC_I2C_ROT_BMC";
+        };
 };
 
 &ltpi0 {
