@@ -52,6 +52,11 @@
 			no-map;
 		};
 
+		bmc_dev0_memory: bmc_dev0_memory@423800000 {
+			reg = <0x4 0x23800000 0x0 0x100000>;
+			no-map;
+		};
+
 		vbios_base0: vbios-base0@431bb0000 {
 			reg = <0x4 0x31bb0000 0x0 0x10000>;
 			no-map;
@@ -1066,4 +1071,9 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	status = "okay";
 	memory-region = <&mctp0_reserved>;
 	mctp-controller;
+};
+
+&bmc_dev0 {
+	status = "okay";
+	memory-region = <&bmc_dev0_memory>;
 };
