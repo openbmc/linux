@@ -4,7 +4,6 @@
 #include <linux/aspeed-mctp.h>
 #include <linux/bitfield.h>
 #include <linux/dma-mapping.h>
-#include <linux/if_arp.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/io.h>
@@ -16,7 +15,6 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/netdevice.h>
 #include <linux/of_platform.h>
 #include <linux/pci.h>
 #include <linux/poll.h>
@@ -28,10 +26,9 @@
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
 #include <linux/of_reserved_mem.h>
-#include <net/mctp.h>
-#include <net/mctpdevice.h>
 
 #include <uapi/linux/aspeed-mctp.h>
+#include <uapi/linux/mctp-pcie.h>
 
 /* AST2600 MCTP Controller registers */
 #define ASPEED_MCTP_CTRL	0x000
@@ -236,7 +233,6 @@
 #define ASPEED_G7_SCU_PCIE_CTRL_VDM_EN	BIT(1)
 
 #define MCTP_OF_PROP "mctp-controller"
-#define MCTP_PCIE_MTU (PCIE_VDM_HDR_SIZE + ASPEED_MCTP_MTU)
 
 struct aspeed_mctp_match_data {
 	u32 rx_cmd_size;
@@ -279,11 +275,6 @@ struct mctp_channel {
 	u32 rd_ptr;
 	u32 wr_ptr;
 	bool stopped;
-};
-
-struct mctp_pcie_netdev {
-	struct net_device *netdev;
-	struct aspeed_mctp *priv;
 };
 
 struct aspeed_mctp {
@@ -341,9 +332,7 @@ struct aspeed_mctp {
 	u32 rx_det_period_us;
 	bool mctp_controller;
 	struct net_device *mctp_netdev;
-	u8 netdev_lladdr[2];
 	spinlock_t netdev_lock;
-	bool netdev_allow_rx;
 };
 
 struct mctp_client {
@@ -380,9 +369,6 @@ struct aspeed_mctp_endpoint {
 };
 
 struct kmem_cache *packet_cache;
-
-static void aspeed_mctp_dispatch_packet_netdev(struct aspeed_mctp *priv,
-	struct mctp_pcie_packet *packet);
 
 void data_dump(struct aspeed_mctp *priv, struct mctp_pcie_packet_data *data)
 {
@@ -450,12 +436,6 @@ static int _get_bdf(struct aspeed_mctp *priv)
 	}
 
 	return bdf;
-}
-
-static void get_to_lladdr(u16 bdf, u8 *lladdr)
-{
-	lladdr[0] = (bdf >> 8) & 0xFF;
-	lladdr[1] = bdf & 0xFF;
 }
 
 static uint32_t chip_version(struct device *dev)
@@ -984,7 +964,9 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 				if (!priv->mctp_controller) {
 					aspeed_mctp_dispatch_packet(priv, rx_packet);
 				} else {
-					aspeed_mctp_dispatch_packet_netdev(priv, rx_packet);
+					mctp_pcie_netdev_rx(priv->mctp_netdev,
+						(struct mctp_pcie_pkt *) &rx_packet->data);
+					aspeed_mctp_packet_free(rx_packet);
 				}
 			} else {
 				dev_dbg(priv->dev, "Failed to allocate RX packet\n");
@@ -1988,8 +1970,9 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 {
 	int ret;
 	u8 tx_max_payload_size;
-	u8 lladdr[2];
+	u16 lladdr;
 	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
+	struct mctp_pcie_netdev *pcie_netdev;
 
 	ret = _get_bdf(priv);
 
@@ -2024,11 +2007,12 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 				schedule_delayed_work(&priv->rx_det_dwork,
 						      usecs_to_jiffies(priv->rx_det_period_us));
 		}
-		if (priv->mctp_controller) {
-			get_to_lladdr(ret, lladdr);
-			if (memcmp(priv->netdev_lladdr, lladdr, sizeof(priv->netdev_lladdr)) != 0) {
-				memcpy(priv->netdev_lladdr, lladdr, sizeof(priv->netdev_lladdr));
-				dev_addr_set(priv->mctp_netdev, priv->netdev_lladdr);
+		if (priv->mctp_controller && priv->mctp_netdev) {
+			pcie_netdev = netdev_priv(priv->mctp_netdev);
+			lladdr = cpu_to_be16(ret);
+			if (memcmp(pcie_netdev->netdev_lladdr, &lladdr, MCTP_PCIE_ADDR_LEN) != 0) {
+				memcpy(pcie_netdev->netdev_lladdr, &lladdr, MCTP_PCIE_ADDR_LEN);
+				dev_addr_set(priv->mctp_netdev, pcie_netdev->netdev_lladdr);
 			}
 		}
 		aspeed_mctp_rx_trigger(&priv->rx);
@@ -2360,78 +2344,18 @@ static int aspeed_mctp_hw_reset(struct aspeed_mctp *priv)
 	return ret;
 }
 
-static void aspeed_mctp_dispatch_packet_netdev(struct aspeed_mctp *priv,
-	struct mctp_pcie_packet *packet)
+static void aspeed_mctp_pcie_netdev_setup(struct net_device *dev)
 {
-	struct net_device *ndev = priv->mctp_netdev;
-	struct mctp_skb_cb *cb;
-	struct sk_buff *skb;
-	u8 *hdr;
-	unsigned long flags;
-	int status, psize;
-	bool need_free = false;
-
-	hdr = (u8 *) packet->data.hdr;
-
-	/* hdr[3]: payload length in no.dwords */
-	psize = hdr[3] * 4;
-	if (psize > ASPEED_MCTP_MTU) {
-		dev_err(priv->dev, "%s:%d payload len (%d) is larger than ASPEED_MCTP_MTU (%d)\n",
-			__func__, __LINE__, psize, ASPEED_MCTP_MTU);
-		ndev->stats.rx_dropped++;
-		goto exit_free;
-	}
-
-	dev_notice(priv->dev, "%s:%d payload len %d\n", __func__, __LINE__, psize);
-
-	skb = netdev_alloc_skb(ndev, 16 + psize);
-	if (!skb) {
-		ndev->stats.rx_dropped++;
-		dev_err(priv->dev, "%s:%d failed to allocate skb\n", __func__, __LINE__);
-		ndev->stats.rx_dropped++;
-		goto exit_free;
-	}
-
-	skb->protocol = htons(ETH_P_MCTP);
-	skb_put_data(skb, &packet->data, 16 + psize);
-	skb_reset_mac_header(skb);
-	skb_pull(skb, sizeof(struct pcie_transport_hdr));
-	skb_reset_network_header(skb);
-
-	cb = __mctp_cb(skb);
-	cb->halen = 2;
-	memcpy(cb->haddr, hdr + 4, 2);
-
-	spin_lock_irqsave(&priv->netdev_lock, flags);
-	if (priv->netdev_allow_rx) {
-		status = netif_rx(skb);
-	} else {		
-		status = NET_RX_DROP;
-		need_free = true;
-	}
-	spin_unlock_irqrestore(&priv->netdev_lock, flags);
-
-	if (status == NET_RX_SUCCESS) {
-		dev_notice(priv->dev, "%s:%d netif_rx %d bytes successfully\n",
-			__func__, __LINE__, psize + 4);
-		ndev->stats.rx_packets++;
-		ndev->stats.rx_bytes += psize + 4;
-	} else {
-		dev_err(priv->dev, "%s:%d netif_rx failed ret=%d\n", __func__, __LINE__, status);
-		ndev->stats.rx_dropped++;
-		if (need_free) {
-			kfree_skb(skb);
-		}
-	}
-
-exit_free:
-	aspeed_mctp_packet_free(packet);
+	dev->mtu = MCTP_TRANSPORT_HDR_SIZE + ASPEED_MCTP_MTU;
+	dev->min_mtu = MCTP_TRANSPORT_HDR_SIZE + ASPEED_MCTP_MTU;
+	dev->max_mtu = MCTP_TRANSPORT_HDR_SIZE + ASPEED_MCTP_MTU;
+	dev->tx_queue_len = TX_PACKET_COUNT * sizeof(struct mctp_pcie_packet_data);
 }
 
-static netdev_tx_t aspeed_mctp_netdev_tx(struct sk_buff *skb, struct net_device *ndev)
+static ssize_t aspeed_mctp_netdev_tx(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct mctp_pcie_netdev *pcie_netdev = netdev_priv(ndev);
-	struct aspeed_mctp *priv = pcie_netdev->priv;
+	struct aspeed_mctp *priv = (struct aspeed_mctp *) pcie_netdev->userdata;
 	struct mctp_client *client = priv->default_client;
 	struct mctp_pcie_packet *tx_packet;
 	u32 *tx_header;
@@ -2443,37 +2367,20 @@ static netdev_tx_t aspeed_mctp_netdev_tx(struct sk_buff *skb, struct net_device 
 	u32 *hdr_dw;
 	u8 *hdr, *data;
 
-	dev_notice(pcie_netdev->priv->dev, "%s:%d len %u\n", __func__, __LINE__, skb->len);
-
-	/*
-	* size of the PCIe VDM header is 16 bytes, and the next two bytes are
-	* Message Type, and at least one byte of the Message.
-	*/
-	if (skb->len < 18) {
-		dev_err(priv->dev, "%s:%d tx packet (%u) too small (< 18)\n", __func__, __LINE__,
-			skb->len);
-		ndev->stats.tx_dropped++;
-		kfree_skb(skb);
-		return NETDEV_TX_OK;
+	if (skb->len < PCIE_VDM_HDR_SIZE) {
+		return 0;
 	}
 
-	if (skb->len > sizeof(tx_packet->data)) {
-		dev_err(priv->dev, "%s:%d tx packet (%u) too big (> %zu)\n", __func__, __LINE__,
-			skb->len, sizeof(tx_packet->data));
-		ndev->stats.tx_dropped++;
-		kfree_skb(skb);
-		return NETDEV_TX_OK;
+	if (skb->len > sizeof(struct mctp_pcie_packet_data)) {
+		return 0;
 	}
 
 	tx_packet = aspeed_mctp_packet_alloc(GFP_KERNEL);
 	if (!tx_packet) {
-		dev_err(priv->dev, "%s:%d tx packet alloc failed\n", __func__, __LINE__);
 		spin_lock_irqsave(&priv->netdev_lock, flags);
 		netif_stop_queue(ndev);
 		spin_unlock_irqrestore(&priv->netdev_lock, flags);
-		ndev->stats.tx_errors++;
-		kfree_skb(skb);
-		return NETDEV_TX_BUSY;
+		return -ENOMEM;
 	}
 
 	ret = _get_bdf(priv);
@@ -2501,12 +2408,8 @@ static netdev_tx_t aspeed_mctp_netdev_tx(struct sk_buff *skb, struct net_device 
 	if (packet_data_sz_dw != pci_data_len_dw) {
 		netif_wake_queue(ndev);
 		spin_unlock_irqrestore(&priv->netdev_lock, flags);
-		dev_err(priv->dev, "%s:%d packet len (DW %u) does not match header len field (DW %u)\n",
-			__func__, __LINE__, packet_data_sz_dw, pci_data_len_dw);
-		ndev->stats.tx_dropped++;
-		kfree_skb(skb);
 		aspeed_mctp_packet_free(tx_packet);
-		return NETDEV_TX_OK;
+		return 0;
 	}
 
 	be32p_replace_bits(&hdr_dw[1], bdf, PCIE_VDM_HDR_REQUESTER_BDF_MASK);
@@ -2521,224 +2424,28 @@ static netdev_tx_t aspeed_mctp_netdev_tx(struct sk_buff *skb, struct net_device 
 
 	if (ret == 0) {
 		tasklet_hi_schedule(&priv->tx.tasklet);
-		ndev->stats.tx_bytes += skb->len;
-		ndev->stats.tx_packets++;
+		return skb->len;
 	} else {
-		dev_err(priv->dev, "%s:%d enqueue packet failed\n", __func__, __LINE__);
-		ndev->stats.tx_dropped++;
 		aspeed_mctp_packet_free(tx_packet);
+		return 0;
 	}
-
-	kfree_skb(skb);
-	return NETDEV_TX_OK;
 }
 
-static int apeed_mctp_netdev_open(struct net_device *dev)
-{
-	struct mctp_pcie_netdev *pcie_netdev = netdev_priv(dev);
-	struct aspeed_mctp *priv = pcie_netdev->priv;
-	unsigned long flags;
-
-	dev_notice(priv->dev, "%s:%d\n", __func__, __LINE__);
-
-	spin_lock_irqsave(&priv->netdev_lock, flags);
-	priv->netdev_allow_rx = true;
-	spin_unlock_irqrestore(&priv->netdev_lock, flags);
-
-	return 0;
-}
-
-static const struct net_device_ops mctp_pcie_netdev_ops = {
-	.ndo_start_xmit = aspeed_mctp_netdev_tx,
-	.ndo_open = apeed_mctp_netdev_open,
+static const struct mctp_pcie_netdev_ops aspeed_netdev_ops = {
+	.netdev_setup = aspeed_mctp_pcie_netdev_setup,
+	.netdev_open = NULL,
+	.netdev_header_create = NULL,
+	.mctp_pcie_tx = aspeed_mctp_netdev_tx,
 };
-
-static u8 aspeed_mctp_netdev_decide_rtype(u8 *data, unsigned int len)
-{
-	// Only handle MCTP control messages. The lengh should alwats longer than 7 bytes
-	// Always set routing type to 2 (Route by ID) for other type of messages
-	if ((len < 7) || (data[4] != 0)) {
-		return 2;
-	}
-
-	// For MCTP Prepare for Endpoint Discovery and Endpoint Discovery control messages
-	// 1. if it is a request, the route type must be 3 (Broadcast from Root Complex)
-	// 2. if it is a response, the route type must be 0 (Route to Root Complex)
-	if ((data[6] == 0x0B) || (data[6] == 0x0C)) {
-		if (data[3] & 0x8) {
-			return 3;
-		} else {
-			return 0;
-		}
-	} else {
-		return 2;
-	}
-}
-
-static int aspeed_mctp_netdev_header_create(struct sk_buff *skb, struct net_device *dev,
-				  unsigned short type, const void *daddr,
-		const void *saddr, unsigned int len)
-{
-	struct mctp_pcie_netdev *pcie_netdev = netdev_priv(dev);
-	struct aspeed_mctp *priv = pcie_netdev->priv;
-	struct pcie_transport_hdr *hdr;
-	struct mctp_hdr *mhdr;
-	u8 rtype = 2;
-
-	dev_notice(priv->dev, "%s:%d len (hdr + payload) %u\n", __func__, __LINE__, len);
-
-	// 4 bytes header + 1 byte type + at least 1 byte data
-	if (len < 6) {
-		dev_err(priv->dev, "%s:%d payload (%u) too small (< %u)\n", __func__, __LINE__,
-				len, 6);
-		return -EMSGSIZE;
-	}
-
-	if (len > MCTP_PCIE_MTU) {
-		dev_err(priv->dev, "%s:%d packet (%u) too big (> %u)\n", __func__, __LINE__,
-			len, MCTP_PCIE_MTU);
-		return -EMSGSIZE;
-	}
-
-	rtype = aspeed_mctp_netdev_decide_rtype(skb->data, len);
-
-	if (!daddr || !saddr) {
-		dev_err(priv->dev, "%s:%d daddr or saddr is NULL\n", __func__, __LINE__);
-		return -EINVAL;
-	}
-
-	skb_push(skb, sizeof(struct pcie_transport_hdr));
-	skb_reset_mac_header(skb);
-	hdr = (void *)skb_mac_header(skb);
-	mhdr = mctp_hdr(skb);
-
-	if (mhdr->dest == 0xFF) {
-		rtype = 3;
-	}
-
-	hdr->fmt_type = 0x70 | rtype;
-	hdr->mbz = 0x00;
-	hdr->mbz_attr_len_hi = 0x00;
-	hdr->len_lo = ((len + 3) / 4) - 1;
-	memcpy(&hdr->requester, saddr, 2);
-	hdr->tag = ((4 - ((len - 4) % 4)) & 0x3) << 4;
-	hdr->code = 0x7F;
-	memcpy(&hdr->target, daddr, 2);
-	hdr->vendor = 0xB41A;
-	mhdr->ver = 0x01;
-
-	return sizeof(struct pcie_transport_hdr);
-}
-
-static const struct header_ops mctp_pcie_headops = {
-	.create = aspeed_mctp_netdev_header_create,
-};
-
-static void aspeed_mctp_pcie_netdev_setup(struct net_device *dev)
-{
-	dev->type = ARPHRD_MCTP;
-
-	dev->mtu = 4 + ASPEED_MCTP_MTU;
-	dev->min_mtu = 4 + ASPEED_MCTP_MTU;
-	dev->max_mtu = 4 + ASPEED_MCTP_MTU;
-	dev->tx_queue_len = TX_PACKET_COUNT * sizeof(struct mctp_pcie_packet_data);
-
-	dev->hard_header_len = PCIE_VDM_HDR_SIZE;
-	dev->addr_len = 2;
-
-	dev->netdev_ops	= &mctp_pcie_netdev_ops;
-	dev->header_ops	= &mctp_pcie_headops;
-}
-
-static int aspeed_mctp_register_netdev(struct aspeed_mctp *priv, int id)
-{
-	struct mctp_client *client;
-	struct mctp_pcie_netdev *dev;
-	struct net_device *ndev = NULL;
-	char name[32];
-	int rc;
-	int bdf = _get_bdf(priv);
-
-	dev_notice(priv->dev, "%s:%d\n", __func__, __LINE__);
-
-	priv->netdev_allow_rx = false;
-
-	client = aspeed_mctp_create_client(priv);
-	if (!client) {
-		dev_err(priv->dev, "%s:%d failed to alloc new client\n", __func__, __LINE__);
-		return -ENOMEM;
-	}
-
-	rc = aspeed_mctp_register_default_handler(client);
-	if (rc == -EBUSY) {
-		// Default handler is registered. Just free the allocated client
-		aspeed_mctp_delete_client(client);
-	}
-
-	if (bdf >= 0) {
-		get_to_lladdr(bdf, priv->netdev_lladdr);
-		dev_notice(priv->dev, "%s:%d PCIe BDF is %02x:%02x\n", __func__, __LINE__,
-			priv->netdev_lladdr[0], priv->netdev_lladdr[1]);
-	} else {
-		dev_info(priv->dev, "%s:%d PCIe BDF is not available now\n", __func__, __LINE__);
-		priv->netdev_lladdr[0] = 0;
-		priv->netdev_lladdr[1] = 0;
-	}
-
-	snprintf(name, sizeof(name), "mctppcie%d", id);
-	ndev = alloc_netdev(sizeof(struct mctp_pcie_netdev), name, NET_NAME_ENUM,
-		aspeed_mctp_pcie_netdev_setup);
-	if (!ndev) {
-		dev_err(priv->dev, "%s:%d alloc_netdev failed\n", __func__, __LINE__);
-		return -ENOMEM;
-	}
-	dev_net_set(ndev, current->nsproxy->net_ns);
-	SET_NETDEV_DEV(ndev, priv->dev);
-	dev_addr_set(ndev, priv->netdev_lladdr);
-
-	dev = netdev_priv(ndev);
-	dev->priv = priv;
-	spin_lock_init(&priv->netdev_lock);
-
-	rc = mctp_register_netdev(ndev, NULL);
-
-	if (rc < 0) {
-		dev_err(priv->dev, "%s:%d register netdev %s failed %d\n",
-			__func__, __LINE__, ndev->name, rc);
-		goto free_netdev;
-	}
-
-	priv->mctp_netdev = ndev;
-	return 0;
-
-free_netdev:
-	free_netdev(ndev);
-	return rc;
-}
-
-static void aspeed_mctp_unregister_netdev(struct aspeed_mctp *priv)
-{
-	unsigned long flags;
-
-	dev_notice(priv->dev, "%s:%d\n", __func__, __LINE__);
-
-	spin_lock_irqsave(&priv->netdev_lock, flags);
-	priv->netdev_allow_rx = false;
-	spin_unlock_irqrestore(&priv->netdev_lock, flags);
-
-	mctp_unregister_netdev(priv->mctp_netdev);
-
-	if (priv->default_client) {
-		aspeed_mctp_delete_client(priv->default_client);
-		priv->default_client = NULL;
-	}
-}
 
 static int aspeed_mctp_probe(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv;
-	int ret, id;
+	struct mctp_client *client;
+	int ret, id, bdf;
+	u16 mctp_addr;
 	const char *name;
+	char mctp_ifname[32] = {0};
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
@@ -2829,10 +2536,36 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		dev_err(priv->dev, "Failed to register peci-mctp device\n");
 
 	priv->mctp_controller = device_property_read_bool(priv->dev, MCTP_OF_PROP);
-	dev_notice(priv->dev, "%s:%d mctp-controller %s enabled\n", __func__, __LINE__,
+	dev_notice(priv->dev, "mctp-controller %s enabled\n",
 		(priv->mctp_controller ? "is" : "is not"));
 	if (priv->mctp_controller) {
-		ret = aspeed_mctp_register_netdev(priv, id);
+		client = aspeed_mctp_create_client(priv);
+		if (!client) {
+			dev_err(priv->dev, "%s:%d failed to alloc new client\n", __func__, __LINE__);
+			goto out_dma;
+		}
+
+		ret = aspeed_mctp_register_default_handler(client);
+		if (ret == -EBUSY) {
+			// Default handler is registered. Just free the allocated client
+			aspeed_mctp_delete_client(client);
+		}
+
+		bdf = _get_bdf(priv);
+		if (bdf >= 0) {
+			mctp_addr = cpu_to_be16(bdf);
+			dev_notice(priv->dev, "%s:%d PCIe BDF is %02x:%02x\n", __func__, __LINE__,
+				mctp_addr & 0xFF, mctp_addr >> 8);
+		} else {
+			dev_notice(priv->dev, "%s:%d PCIe BDF is not available now\n", __func__, __LINE__);
+			mctp_addr = 0;
+		}
+
+		spin_lock_init(&priv->netdev_lock);
+
+		snprintf(mctp_ifname, sizeof(mctp_ifname), "mctppcie%d", id);
+		ret = mctp_pcie_register_netdev(mctp_ifname, priv->dev, (u8 *) &mctp_addr,
+			priv, &aspeed_netdev_ops, &priv->mctp_netdev);
 		if (ret != 0) {
 			dev_err(priv->dev, "Failed to register netdev ret=%d\n", ret);
 			goto out_dma;
@@ -2855,7 +2588,11 @@ static int aspeed_mctp_remove(struct platform_device *pdev)
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
 	if (priv->mctp_controller) {
-		aspeed_mctp_unregister_netdev(priv);
+		mctp_pcie_unregister_netdev(priv->mctp_netdev);
+		if (priv->default_client != NULL) {
+			aspeed_mctp_delete_client(priv->default_client);
+			priv->default_client = NULL;
+		}
 	}
 
 	platform_device_unregister(priv->peci_mctp);
