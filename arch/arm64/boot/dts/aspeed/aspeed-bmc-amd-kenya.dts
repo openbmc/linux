@@ -81,6 +81,11 @@
 			compatible = "shared-dma-pool";
 			no-map;
 		};
+
+		espi0_mmbi_memory: espi0-mmbi-memory@424000000 {
+			reg = <0x4 0x24000000 0x0 0x4000000>;
+			no-map;
+		};
 	};
 
 	aliases {
@@ -629,13 +634,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
                 output-high;
                 line-name = "SEL_P0_SEC_I2C_ROT_BMC";
         };
-
-	espi_default {
-		gpio-hog;
-		gpios = <10 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "espiboot_pin_default";
-	};
 };
 
 &ltpi0 {
@@ -692,8 +690,18 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 &espi0 {
 	status = "okay";
 	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi0_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
 	oob-dma-mode;
 	flash-dma-mode;
+	flash-edaf-mode = <0>;
+	flash-edaf-tgt-addr = <0x1 0x80000000>;
+	flash-edaf-size = <0x0 0x2000000>;
 };
 
 &lpc0_pcc {
@@ -717,6 +725,15 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
+};
+
+/* eSPI VUART */
+&vuart0 {
+	status = "okay";
+	virtual;
+	port = <0x3f8>;
+	sirq = <4>;
+	sirq-polarity = <0>;
 };
 
 &uphy3a {
