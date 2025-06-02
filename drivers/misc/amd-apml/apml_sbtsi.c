@@ -448,10 +448,8 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 	struct regmap *regmap;
 
 	dev_err(dev, "SBTSI: PID: %llx\n", i3cdev->desc->info.pid);
-	if (!((i3cdev->desc->info.pid == 0x0) || (i3cdev->desc->info.pid == 0x22400000001) ||
-		(i3cdev->desc->info.pid == 0x118) || (i3cdev->desc->info.pid == 0x010118) ||
-		(i3cdev->desc->info.pid == 0x01000118) || (i3cdev->desc->info.pid == 0x01010118)))
-	{
+	if (!(I3C_PID_INSTANCE_ID(i3cdev->desc->info.pid) == 0 ||
+	      i3cdev->desc->info.pid == 0x22400000001)) {
 		dev_err(dev, "SBTSI: Error PID: %llx\n", i3cdev->desc->info.pid);
 		return -ENXIO;
 	}
