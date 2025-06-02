@@ -39,13 +39,14 @@ static int fan251030_probe(struct i2c_client *client)
 	if (!i2c_check_functionality(client->adapter,
 				     I2C_FUNC_SMBUS_READ_BYTE_DATA |
 				     I2C_FUNC_SMBUS_READ_WORD_DATA |
-				     I2C_FUNC_SMBUS_READ_BLOCK_DATA))
+				     I2C_FUNC_SMBUS_READ_BLOCK_DATA |
+				     I2C_FUNC_SMBUS_READ_I2C_BLOCK))
 	{
 		dev_err(&client->dev, "fan251030_probe: Error i2c_check_functionality\n");
 		return -ENODEV;
 	}
 	/* Read Manufacturer id */
-	ret = i2c_smbus_read_block_data(client, PMBUS_IC_DEVICE_ID, buf);
+	ret = i2c_smbus_read_i2c_block_data(client, PMBUS_IC_DEVICE_ID, I2C_SMBUS_BLOCK_DATA, buf);
 	if (ret < 0) {
 		dev_err(&client->dev, "fan251030_probe: Failed to read PMBUS_IC_DEVICE_ID\n");
 		return ret;
