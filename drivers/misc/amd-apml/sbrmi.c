@@ -448,6 +448,18 @@ static int sbrmi_i2c_identify_reg_addr_size(struct i2c_client *i2c, u32 *size, u
 	return ret;
 }
 
+static const char *sbrmi_addr_to_label(u8 addr)
+{
+	switch (addr) {
+	case 0x38:
+		return "1.0";
+	case 0x3c:
+		return "0.0";
+	default:
+		return NULL;
+	}
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
 static int sbrmi_i2c_probe(struct i2c_client *client,
 			   const struct i2c_device_id *rmi_id)
@@ -458,6 +470,7 @@ static int sbrmi_i2c_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct device *hwmon_dev;
 	struct apml_sbrmi_device *rmi_dev;
+	const char *hwmon_dev_name;
 
 	rmi_dev = devm_kzalloc(dev, sizeof(struct apml_sbrmi_device), GFP_KERNEL);
 	if (!rmi_dev)
@@ -470,15 +483,18 @@ static int sbrmi_i2c_probe(struct i2c_client *client)
 
 	dev_set_drvdata(dev, (void *)rmi_dev);
 
-	hwmon_dev = devm_hwmon_device_register_with_info(dev, client->name,
+	rmi_dev->dev_static_addr = client->addr;
+
+	hwmon_dev_name = devm_kasprintf(dev, GFP_KERNEL, "sbrmi_%s",
+					sbrmi_addr_to_label(rmi_dev->dev_static_addr));
+
+	hwmon_dev = devm_hwmon_device_register_with_info(dev, hwmon_dev_name,
 							 rmi_dev,
 							 &sbrmi_chip_info,
 							 NULL);
 
 	if (!hwmon_dev)
 		return PTR_ERR_OR_ZERO(hwmon_dev);
-
-	rmi_dev->dev_static_addr = client->addr;
 
 	init_completion(&rmi_dev->misc_fops_done);
 	return create_misc_rmi_device(rmi_dev, dev);
@@ -623,6 +639,7 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 	struct device *hwmon_dev;
 	struct apml_sbrmi_device *rmi_dev;
 	int ret;
+	const char *hwmon_dev_name;
 
 	dev_info(dev, "SBRMI: PID: %llx\n", i3cdev->desc->info.pid);
 
@@ -646,7 +663,13 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 
 	dev_set_drvdata(dev, (void *)rmi_dev);
 
-	hwmon_dev = devm_hwmon_device_register_with_info(dev, "sbrmi_i3c", rmi_dev,
+	/* Need to verify for the static address for i3cdev */
+	rmi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
+
+	hwmon_dev_name = devm_kasprintf(dev, GFP_KERNEL, "sbrmi_%s",
+					sbrmi_addr_to_label(rmi_dev->dev_static_addr));
+
+	hwmon_dev = devm_hwmon_device_register_with_info(dev, hwmon_dev_name, rmi_dev,
 							 &sbrmi_chip_info, NULL);
 
 	if (!hwmon_dev)
@@ -654,9 +677,6 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 		dev_info(dev, "SBRMI: Error HWMON Device Register\n");
 		return PTR_ERR_OR_ZERO(hwmon_dev);
 	}
-
-	/* Need to verify for the static address for i3cdev */
-	rmi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
 
 	i3c_sbrmi_cache = kmem_cache_create_usercopy("i3c-data-cache",
 					sizeof(struct i3c_sbrmi_data), 0, 0, 0,
