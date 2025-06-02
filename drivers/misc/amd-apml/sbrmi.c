@@ -625,9 +625,9 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 	int ret;
 
 	dev_info(dev, "SBRMI: PID: %llx\n", i3cdev->desc->info.pid);
-	if (!((i3cdev->desc->info.pid == 0x1000) || (i3cdev->desc->info.pid == 0x22400000002) ||
-		(i3cdev->desc->info.pid == 0x1118) || (i3cdev->desc->info.pid == 0x1001118)))
-	{
+
+	if (!(I3C_PID_INSTANCE_ID(i3cdev->desc->info.pid) == 1 ||
+	      i3cdev->desc->info.pid == 0x22400000002)) {
 		dev_info(dev, "SBRMI: PID Error: %llx\n", i3cdev->desc->info.pid);
 		return -ENXIO;
 	}
