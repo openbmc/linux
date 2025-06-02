@@ -767,9 +767,11 @@ static const struct of_device_id __maybe_unused sbrmi_of_match[] = {
 MODULE_DEVICE_TABLE(of, sbrmi_of_match);
 
 static const struct i3c_device_id sbrmi_i3c_id[] = {
-	I3C_DEVICE_EXTRA_INFO(0, 0x000, 0x1118, NULL), /* P0 - IOD0 - SBRMI */
-	I3C_DEVICE_EXTRA_INFO(0, 0x100, 0x1118, NULL), /* P1 - IOD0 - SBRMI */
+	I3C_DEVICE_EXTRA_INFO(0, 0x000, 0x118, NULL), /* P0 - IOD0 - SBRMI */
+	I3C_DEVICE_EXTRA_INFO(0, 0x100, 0x118, NULL), /* P1 - IOD0 - SBRMI */
 	I3C_DEVICE_EXTRA_INFO(0x112, 0x0, 0x2, NULL),
+	I3C_DEVICE_EXTRA_INFO(0x112, 0x0, 0x118, NULL), /* Socket:0, IOD:0 */
+	I3C_DEVICE_EXTRA_INFO(0x112, 0x100, 0x118, NULL), /* Socket:1 IOD:0 */
 	I3C_DEVICE_EXTRA_INFO(0, 0x0, 0x0, NULL),
 	{}
 };
