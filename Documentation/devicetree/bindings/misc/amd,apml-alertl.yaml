@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/hwmon/amd,apml-alertl.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: >
+  Sideband Remote Management Interface (SB-RMI) compliant
+  AMD APML Alert_L GPIO.
+
+maintainers:
+  - Akshay Gupta <Akshay.Gupta@amd.com>
+
+description: |
+  Processors from AMD provide APML ALERT_L for BMC users to
+  monitor events.
+  APML Alert_L is asserted in multiple events,
+  - Machine Check Exception occurs within the system
+  - The processor alerts the SBI on system fatal error event
+  - Set by hardware as a result of a 0x71/0x72/0x73 command completion
+  - Set by firmware to indicate the completion of a mailbox operation
+  - High/Low Temperature Alert
+
+  APML Alert_L module define uevents to notify userspace of the
+  alert event.
+
+properties:
+  compatible:
+    const: apml-alertl
+
+  gpio:
+    maxItems: 1
+    description: |
+     GPIO specifier for APML Alert_L line. Specify GPIO controller, GPIO pin
+     and polarity.
+
+  sbrmi:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: ref amd,sbrmi.yaml
+
+  sbtsi:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: ref amd,sbtsi.yaml
+
+required:
+  - compatible
+  - gpio
+  - sbrmi
+  - sbtsi
+
+additionalProperties: false
+
+examples:
+  - |
+    /* Alert_L associated with Socket 0 */
+    alertl_sock0 {
+        compatible = "apml-alertl";
+        status = "okay";
+        gpios = <&ltpi0_gpio 20 GPIO_ACTIVE_LOW>;
+        sbrmi = <&sbrmi_p0_iod0>;
+        sbtsi = <&sbtsi_p0_iod0>;
+    };
+...
