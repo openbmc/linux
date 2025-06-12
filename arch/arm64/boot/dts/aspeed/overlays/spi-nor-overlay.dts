@@ -1,0 +1,26 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/soc@14000000/spi@14030000";
+        __overlay__ {
+            compatible = "aspeed,ast2700-spi";  // Change the SPI controller driver
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/soc@14000000/spi@14030000/flash@0";
+        __overlay__ {
+            status = "okay"; // Enable the NOR flash
+        };
+    };
+    
+    fragment@2 {
+        target-path = "/soc@14000000/spi@14030000/oled@0";
+        __overlay__ {
+            status = "disabled"; // Disable the OLED
+        };
+    };
+};
