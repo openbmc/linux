@@ -234,11 +234,10 @@
 	status = "okay";
 	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
 	pinctrl-names = "default";
-	compatible = "aspeed,ast2700-spi";
-
+	compatible = "aspeed,ast2700-spi-txrx";
 	flash@0 {
 		reg = <0>;
-		status = "okay";
+		status = "disabled";
 		m25p,fast-read;
 		label = "pnor";
 		compatible = "jedec,spi-nor";
@@ -246,6 +245,15 @@
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <1>;
 	};
+	oled@0 {
+        reg = < 0 >; // Chip select 0
+        compatible = "ssd,ssd1322";
+        spi-max-frequency = <1000000>; // Adjust the frequency as needed
+        label = "ssd1322";
+        status = "okay"; // Enable the SSD1322 device
+        spi-tx-bus-width = <1>;
+        spi-rx-bus-width = <1>;
+    };
 };
 
 //BMC Console
