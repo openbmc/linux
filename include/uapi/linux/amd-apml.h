@@ -1,17 +1,41 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
- * Copyright (C) 2021-2022 Advanced Micro Devices, Inc.
+ * Copyright (C) 2025 Advanced Micro Devices, Inc.
  */
 #ifndef _AMD_APML_H_
 #define _AMD_APML_H_
 
 #include <linux/types.h>
 
+#ifndef BIT
+#define BIT(n) (1U << (n))
+#endif
+
 /*
- * Currently signal 33 to 64 are unused,
- * using user signal number from that range
+ * APML RAS and Temperature alert source. Uevent
+ * returns 32 bit value which is sent to userspace.
+ * [23:0]: defined for RAS Alerts
+ * SBRMI RAS register 0x4C. RAS alert register bits(0-6)
+ *
+ * [31:24] : defined for Temperature Alerts
+ * SBTSI Temp register 0x02. socket temperature alert bits(3 & 4)
+ *
+ * Note: Additional Alert_L bit definition may be added in future
+ * for RAS alert extension
+ *
  */
-#define USR_SIGNAL	44
+
+enum apml_alert_src {
+	APML_FATAL_ALERT	= BIT(0),
+	APML_FCH_ALERT		= BIT(1),
+	APML_RESET_CTRL_ALERT	= BIT(2),
+	APML_MCA_ALERT		= BIT(3),
+	APML_DRAM_CECC_ALERT	= BIT(4),
+	APML_PCIE_ALERT		= BIT(5),
+	APML_CPU_SHUTDOWN_ALERT	= BIT(6),
+	APML_TEMP_LOW_ALERT	= BIT(27),
+	APML_TEMP_HIGH_ALERT	= BIT(28),
+};
 
 enum apml_protocol {
 	APML_CPUID	= 0x1000,

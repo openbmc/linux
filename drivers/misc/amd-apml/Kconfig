@@ -24,3 +24,19 @@ config APML_SBTSI
 
       This driver can also be built as a module. If so, the module will
       be called apml_sbtsi.
+
+config APML_ALERTL
+    tristate "Emulated apml alertl interface driver over i3c bus"
+    depends on APML_SBRMI && APML_SBTSI
+    default n
+    help
+      This driver provides support for AMD APML Alert_L interface,
+      enabling alert notification from AMD SoCs to a BMC (Baseboard
+      Management Controller) over I2C/I3C bus.
+
+      The driver monitors RAS and thermal events by handling alerts
+      from SBRMI and SBTSI devices, and reports these events to userspace
+      via uevents. Device configuration is managed via device tree bindings.
+
+      This driver can also be built as a module. If so, the module will
+      be called apml_alertl.ko.
