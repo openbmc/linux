@@ -974,7 +974,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		/*24-31*/ "","","","","","","","P0_MGMT_ASSERT_NMI_BTN_L",
 		/*32-39*/ "","P0_MGMT_SOC_RESET_L","",
 			"MGMT_HDT_SEL","","SCM_JTAG_DBREQ","","JTAG_TRST_N",
-		/*40-47*/ "","P0_MGMT_ASSERT_WARM_RST_BTN_L","","","","","","",
+		/*40-47*/ "","P0_MGMT_ASSERT_WARM_RST_BTN_L","P0_MGMT_MON_DIMM_AH_PCAMP","","P0_MGMT_MON_DIMM_IP_PCAMP","","","",
 		/*48-55*/ "","","","","","","","",
 		/*56-63*/ "","","","","","","","",
 		/*64-71*/ "","","","","","","","",
