@@ -23,9 +23,9 @@
 #include <linux/of.h>
 #include <linux/regmap.h>
 #include <linux/version.h>
-
 #include <linux/amd-apml.h>
 
+#include "sbtsi-common.h"
 /*
  * SB-TSI registers only support SMBus byte data access. "_INT" registers are
  * the integer part of a temperature value or limit, and "_DEC" registers are
@@ -68,15 +68,6 @@
 #define SBTSI_INT_OFFSET	3
 #define SBTSI_DEC_OFFSET	5
 #define SBTSI_DEC_MASK		0x7
-
-struct apml_sbtsi_device {
-	struct miscdevice sbtsi_misc_dev;
-	struct i2c_client *client;
-	struct i3c_device *i3cdev;
-	struct regmap *regmap;
-	struct mutex lock;
-	u8 dev_static_addr;
-} __packed;
 
 /*
  * From SB-TSI spec: CPU temperature readings and limit registers encode the
@@ -665,6 +656,26 @@ static struct i2c_driver sbtsi_driver = {
 };
 
 module_i3c_i2c_driver(sbtsi_i3c_driver, &sbtsi_driver)
+
+int sbtsi_match_i3c(struct device *dev, const void *data)
+{
+	const struct device_node *node = (const struct device_node *)data;
+
+	if (dev->of_node == node && dev->driver == &sbtsi_i3c_driver.driver)
+		return 1;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sbtsi_match_i3c);
+
+int sbtsi_match_i2c(struct device *dev, const void *data)
+{
+	const struct device_node *node = (const struct device_node *)data;
+
+	if (dev->of_node == node && dev->driver == &sbtsi_driver.driver)
+		return 1;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sbtsi_match_i2c);
 
 MODULE_AUTHOR("Kun Yi <kunyi@google.com>");
 MODULE_DESCRIPTION("Hwmon driver for AMD SB-TSI emulated sensor");
