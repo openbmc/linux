@@ -69,6 +69,13 @@
 			reusable;
 		};
 
+		video_engine_memory1: video1{
+			size = <0x0 0x04000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
 		pcc_memory: pccbuffer {
 			reg = <0x4 0xE0000000 0x00001000>; /* 4K */
 			no-map;
@@ -1138,6 +1145,11 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 &video0 {
 	status = "okay";
 	memory-region = <&video_engine_memory0>;
+};
+
+&video1 {
+	status = "okay";
+	memory-region = <&video_engine_memory1>;
 };
 
 /* eSPI node for P0 - PCC, eDAF enabled */
