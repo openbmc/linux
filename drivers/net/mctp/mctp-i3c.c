@@ -305,12 +305,15 @@ static int mctp_i3c_probe(struct i3c_device *i3c)
 static void mctp_i3c_remove_device(struct mctp_i3c_device *mi)
 __must_hold(&busdevs_lock)
 {
+	int rc;
+
 	/* Ensure the tx thread isn't using the device */
 	mutex_lock(&mi->lock);
 
 	/* Counterpart of mctp_i3c_setup */
-	i3c_device_disable_ibi(mi->i3c);
-	i3c_device_free_ibi(mi->i3c);
+	rc = i3c_device_disable_ibi(mi->i3c);
+	if (!rc)
+		i3c_device_free_ibi(mi->i3c);
 
 	/* Counterpart of mctp_i3c_add_device */
 	i3cdev_set_drvdata(mi->i3c, NULL);
