@@ -1119,7 +1119,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		/*56-63*/ "","P1_MGMT_ASSERT_CLR_CMOS","MGMT_MON_HDT_CHAIN","MGMT_ASSERT_HDT_CHAIN","","","","",
 		/*64-71*/ "","","","","","","","",
 		/*72-79*/ "P1_MGMT_MON_POST_COMPLETE","","","","","","","",
-		/*80-87*/ "P1_MGMT_MON_PSP_SOFT_FUSE_NOTIFY","","P1_MGMT_MON_PWR_GOOD","","","","","",
+		/*80-87*/ "P1_MGMT_MON_PSP_SOFT_FUSE_NTFY","","P1_MGMT_MON_PWR_GOOD","","","","","",
 		/*88-95*/ "","","","","","","","",
 		/*96-103*/ "","","","","",
 			"","MGMT_MON_PLATFORM_CONFIG","MGMT_ASSERT_PLATFORM_CONFIG",
