@@ -40,10 +40,19 @@
 #define SBTSI_REG_TEMP_HIGH_DEC		0x13 /* RW */
 #define SBTSI_REG_TEMP_LOW_DEC		0x14 /* RW */
 
+#define TBAI_WR_LEN			0x4  /* Write length */
+#define TBAI_FLUSH_RD_LEN		0x4  /* flush buffer read length */
+#define MAX_PROTO_RD_SZ			32   /* Maximum bytes read in one transaction */
+#define DWORD_TO_BYTES			0x4  /* Number of bytes in dword */
+/* Maximum dwords possible to read in one transaction */
+#define MAX_DWORDS_READ			0x8
+
 #define SBTSI_CONFIG_READ_ORDER_SHIFT	5
 
 #define SBTSI_TEMP_MIN	0
 #define SBTSI_TEMP_MAX	255875
+#define TB_ACQUIRE	0x31
+#define TB_FLUSH	0x32
 
 /*
  * SBTSI_STEP_INC Fractional portion of temperature
@@ -62,6 +71,8 @@
 
 struct apml_sbtsi_device {
 	struct miscdevice sbtsi_misc_dev;
+	struct i2c_client *client;
+	struct i3c_device *i3cdev;
 	struct regmap *regmap;
 	struct mutex lock;
 	u8 dev_static_addr;
@@ -225,42 +236,176 @@ static const struct hwmon_chip_info sbtsi_chip_info = {
 	.info = sbtsi_info,
 };
 
+static int tbai_protocol(struct apml_sbtsi_device *tsi_dev, u8 cmd, u8 *input,
+			 u8 count, u8 *output)
+{
+	struct i3c_priv_xfer xfers[] = {
+		{
+			.rnw = 1,
+			.len = count,
+			.data.out = output,
+		},
+	};
+	int ret;
+
+	if (!tsi_dev->i3cdev)
+		return -EOPNOTSUPP;
+
+	ret = regmap_bulk_write(tsi_dev->regmap, cmd, input, TBAI_WR_LEN);
+	if (ret < 0)
+		return ret;
+
+	return i3c_device_do_priv_xfers(tsi_dev->i3cdev, xfers, 1);
+}
+
+static int flush_trace_buffer(struct apml_sbtsi_device *tsi_dev, struct apml_tbai_msg *tbai_msg)
+{
+	u8 input[4] = {0};
+	u8 output[4] = {0};
+	int ret, i;
+
+	ret = tbai_protocol(tsi_dev, tbai_msg->reg_in[TBAI_CMD_INDEX], input, 4, output);
+	if (ret)
+		return ret;
+	for (i = 0; i < TBAI_FLUSH_RD_LEN; i++)
+		tbai_msg->data_out.bytes_out[i] = output[i];
+	return ret;
+}
+
+static int acquire_trace_buffer(struct apml_sbtsi_device *tsi_dev, struct apml_tbai_msg *tbai_msg)
+{
+	int dword_read, dword_remain, i, j, ret;
+	u16 offset, offset_new;
+	u8 input[TBAI_WR_LEN] = {0};
+	/* TODO: static memory as max supported is 8 Dwords */
+	u8 *output;
+
+	/* Dwords to read from user*/
+	dword_remain = tbai_msg->reg_in[TBAI_DWORD_RD_INDEX];
+	/* Extract the offset to update, if more than 8 Dwords require to read */
+	offset = tbai_msg->reg_in[TBAI_OFFSET_HI] << 8 |
+		 tbai_msg->reg_in[TBAI_OFFSET_LO];
+
+	/* If Dwords to read is 0 or more than 32, return */
+	if (tbai_msg->reg_in[TBAI_DWORD_RD_INDEX] == 0 ||
+	    tbai_msg->reg_in[TBAI_DWORD_RD_INDEX] > MAX_TBAI_DWORDS)
+		return -EINVAL;
+
+	/*
+	 * Set required variables to read dwords
+	 * Maximum dwords supported from i3c protocol is 8
+	 */
+	for (i = 0; i <= tbai_msg->reg_in[TBAI_DWORD_RD_INDEX] / 8 &&
+	     dword_remain > 0; i++) {
+		if (dword_remain > MAX_DWORDS_READ) {
+			dword_remain -= MAX_DWORDS_READ;
+			dword_read = MAX_DWORDS_READ;
+		} else {
+			dword_read = dword_remain;
+			dword_remain = 0;
+		}
+		/* update offset if more than 8 Dwords require to read */
+		offset_new = i * MAX_PROTO_RD_SZ + offset;
+		input[0] = tbai_msg->reg_in[TBAI_LUT_INDEX];
+		input[1] = offset_new & 0xFF;
+		input[2] = (offset_new >> 8) & 0xFF;
+		input[3] = dword_read - 1;
+
+		/*
+		 * TODO: Optimize to allocate memory at once as per user request
+		 * Currently in A0, only one Dword can be read, due to bug.
+		 * Optimize in B0.
+		 */
+		output = kcalloc(dword_read * DWORD_TO_BYTES, sizeof(u8), GFP_KERNEL);
+		if (!output)
+			return -ENOMEM;
+
+		ret = tbai_protocol(tsi_dev, tbai_msg->reg_in[TBAI_CMD_INDEX],
+				    input, dword_read * DWORD_TO_BYTES, output);
+		if (ret) {
+			kfree(output);
+			return ret;
+		}
+		for (j = 0; j < dword_read * DWORD_TO_BYTES; j++) {
+			/*
+			 * TODO: In A0, only one Dword is supported
+			 * APML module is optimized to read max of 32 Dwords at a time.
+			 * dwords exceeding 8 need to be tested in B0 platform.
+			 */
+			tbai_msg->data_out.bytes_out[j + (i * MAX_PROTO_RD_SZ)] = output[j];
+		}
+		kfree(output);
+	}
+	return 0;
+}
+
 static long sbtsi_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	int __user *arguser = (int  __user *)arg;
 	struct apml_message msg = { 0 };
+	struct apml_tbai_msg tbai_msg = {0};
 	struct apml_sbtsi_device *tsi_dev;
 	int ret;
 
-	if (copy_struct_from_user(&msg, sizeof(msg), arguser, sizeof(struct apml_message)))
-		return -EFAULT;
+	switch (cmd) {
+	case SBRMI_IOCTL_CMD:
+		if (copy_struct_from_user(&msg, sizeof(msg), arguser, sizeof(struct apml_message)))
+			return -EFAULT;
 
-	if (msg.cmd != APML_REG)
-		return -EINVAL;
+		if (msg.cmd != APML_REG)
+			return -EINVAL;
 
-	tsi_dev = container_of(fp->private_data, struct apml_sbtsi_device, sbtsi_misc_dev);
-	if (!tsi_dev)
-		return -EFAULT;
+		tsi_dev = container_of(fp->private_data, struct apml_sbtsi_device, sbtsi_misc_dev);
+		if (!tsi_dev)
+			return -EFAULT;
 
-	mutex_lock(&tsi_dev->lock);
+		mutex_lock(&tsi_dev->lock);
 
-	if (!msg.data_in.reg_in[RD_FLAG_INDEX]) {
-		ret = regmap_write(tsi_dev->regmap,
-				   msg.data_in.reg_in[REG_OFF_INDEX],
-				   msg.data_in.reg_in[REG_VAL_INDEX]);
-	} else {
-		ret = regmap_read(tsi_dev->regmap,
-				  msg.data_in.reg_in[REG_OFF_INDEX],
-				  (int *)&msg.data_out.reg_out[RD_WR_DATA_INDEX]);
-		if (ret)
-			goto out;
+		if (!msg.data_in.reg_in[RD_FLAG_INDEX]) {
+			ret = regmap_write(tsi_dev->regmap,
+					   msg.data_in.reg_in[REG_OFF_INDEX],
+					   msg.data_in.reg_in[REG_VAL_INDEX]);
+		} else {
+			ret = regmap_read(tsi_dev->regmap,
+					  msg.data_in.reg_in[REG_OFF_INDEX],
+					  (int *)&msg.data_out.reg_out[RD_WR_DATA_INDEX]);
+			if (ret)
+				goto out;
 
-		if (copy_to_user(arguser, &msg, sizeof(struct apml_message)))
-			ret = -EFAULT;
-	}
+			if (copy_to_user(arguser, &msg, sizeof(struct apml_message)))
+				ret = -EFAULT;
+		}
 out:
-	mutex_unlock(&tsi_dev->lock);
-	return ret;
+		mutex_unlock(&tsi_dev->lock);
+		return ret;
+	case SBTBAI_IOCTL_CMD:
+		if (copy_struct_from_user(&tbai_msg, sizeof(tbai_msg), arguser,
+					  sizeof(struct apml_tbai_msg)))
+			return -EFAULT;
+
+		tsi_dev = container_of(fp->private_data, struct apml_sbtsi_device, sbtsi_misc_dev);
+		if (!tsi_dev)
+			return -EFAULT;
+
+		mutex_lock(&tsi_dev->lock);
+		if (tbai_msg.reg_in[TBAI_CMD_INDEX] == TB_ACQUIRE)
+			ret = acquire_trace_buffer(tsi_dev, &tbai_msg);
+		else if (tbai_msg.reg_in[TBAI_CMD_INDEX] == TB_FLUSH)
+			ret = flush_trace_buffer(tsi_dev, &tbai_msg);
+		else
+			ret = -EINVAL;
+
+		if (ret)
+			goto tbai_exit;
+		if (copy_to_user(arguser, &tbai_msg, sizeof(struct apml_tbai_msg)))
+			ret = -EFAULT;
+tbai_exit:
+		mutex_unlock(&tsi_dev->lock);
+		return ret;
+	default:
+		break;
+	}
+	return 0;
 }
 
 static const struct file_operations sbtsi_fops = {
@@ -325,6 +470,7 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 		return -ENOMEM;
 	}
 
+	tsi_dev->i3cdev = i3cdev;
 	tsi_dev->regmap = regmap;
 	mutex_init(&tsi_dev->lock);
 
@@ -365,6 +511,7 @@ static int sbtsi_i2c_probe(struct i2c_client *client)
 
 	mutex_init(&tsi_dev->lock);
 	tsi_dev->regmap = devm_regmap_init_i2c(client, &sbtsi_i2c_regmap_config);
+	tsi_dev->client = client;
 	if (IS_ERR(tsi_dev->regmap))
 		return PTR_ERR(tsi_dev->regmap);
 
