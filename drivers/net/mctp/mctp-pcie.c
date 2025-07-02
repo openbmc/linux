@@ -187,7 +187,6 @@ void mctp_pcie_netdev_rx(struct net_device *ndev,
 		ndev->stats.rx_bytes += MCTP_TRANSPORT_HDR_SIZE + psize;
 	} else {
 		ndev->stats.rx_dropped++;
-		kfree_skb(skb);
 	}
 }
 EXPORT_SYMBOL_GPL(mctp_pcie_netdev_rx);
