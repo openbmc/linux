@@ -127,13 +127,10 @@ static int sbrmi_read(struct device *dev, enum hwmon_sensor_types type,
 		ret = rmi_mailbox_xfer(rmi_dev, &msg);
 		if (ret < 0)
 		{
-			//TBD: Temporary work-around to avoid BMC hang in ipmid
+			//TBD: Temporary work-around for phosphor PID control operation
 			//     Return 0 instead of the error
-			//     change the value to -1
-			pr_err("SBRMI_READ_DIMM_THERMAL_SENSOR failed with ret:%d, 0x%x, return value of -1\n", ret, (DIMM_BASE_ID + channel));
-			*val=-1;
-			ret=0;
-			// return ret;
+			*val = -1;
+			ret = 0;
 		}
 		break;
 
@@ -149,13 +146,19 @@ static int sbrmi_read(struct device *dev, enum hwmon_sensor_types type,
 		}
 		else if (type == hwmon_temp)
 		{
-			//TBD: Temporary work-around to avoid BMC hang in ipmid
-			//     Return value of -1 in case of the DIMM Read error
-			if(*val != -1) {
-			// sbrmi temp is floating point, convert to deg C rational num
-			*val = (msg.data_out.mb_out[RD_WR_DATA_INDEX] >> DIMM_TEMP_OFFSET) * 1000;
-			*val = ((*val-32000) * (5/9));
+			if(*val == -1)
+			{
+				// change DIMM Temp value to 0
+				*val = 0;
 			}
+			else
+			{
+				// sbrmi temp is floating point, convert to deg C rational num
+				*val = msg.data_out.mb_out[RD_WR_DATA_INDEX] >> DIMM_TEMP_OFFSET;
+				*val = (*val / 4);
+			}
+			// TBD: Report in C rather than mC for phosphor PID fan control
+			//*val= (tmp * 1000);
 		}
 	}
 
