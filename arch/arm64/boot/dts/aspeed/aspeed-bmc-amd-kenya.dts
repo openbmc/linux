@@ -269,12 +269,9 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			nct7363@20 {
-				compatible = "nuvoton,nct7363";
+				compatible = "nct,nct7363";
 				reg = <0x20>;
-			};
-			nct7363@21 {
-				compatible = "nuvoton,nct7363";
-				reg = <0x21>;
+				fan_sel_gpio = <3>;
 			};
 		};
 	};
