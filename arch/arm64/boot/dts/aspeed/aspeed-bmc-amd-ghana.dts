@@ -723,6 +723,24 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	status = "okay";
 };
 
+/* eSPI VUART P0 */
+&vuart0 {
+	status = "okay";
+	virtual;
+	port = <0x3f8>;
+	sirq = <4>;
+	sirq-polarity = <0>;
+};
+
+/* eSPI VUART P1 */
+&vuart2{
+	status = "okay";
+	virtual;
+	port = <0x3f8>;
+	sirq = <4>;
+	sirq-polarity = <0>;
+};
+
 &uphy3a {
 	status = "okay";
 };

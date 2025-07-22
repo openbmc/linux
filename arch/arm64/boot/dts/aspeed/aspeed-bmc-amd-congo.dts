@@ -1043,12 +1043,6 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 	status = "okay";
 };
 
-&uart3 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
-	status = "okay";
-};
-
 &uart13 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
