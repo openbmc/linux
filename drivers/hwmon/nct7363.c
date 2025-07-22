@@ -353,8 +353,8 @@ static void nct7362_init_client(struct i2c_client *client,u32 gpio)
 		nct7362_write_value(client, NCT7362_REG_FANIN_CTRL2, 0x1E);
 		nct7362_write_value(client, NCT7362_REG_GPIO_00_03_CONFIG, 0xA9);
 		nct7362_write_value(client, NCT7362_REG_GPIO_04_07_CONFIG, 0x2);
-		nct7362_write_value(client, NCT7362_REG_GPIO_04_07_CONFIG, 0x0);
-		nct7362_write_value(client, NCT7362_REG_GPIO_04_07_CONFIG, 0x0);
+		nct7362_write_value(client, NCT7362_REG_GPIO_10_13_CONFIG, 0x0);
+		nct7362_write_value(client, NCT7362_REG_GPIO_14_17_CONFIG, 0x0);
 	}
 	else {
 		// init /- pwm0, pwm8, pwm15, fanin9 10 11 -/- fanin 12 GPIO5 6 7 -/- GPIO 10 11 12 13 -/- GPIO 14 15 16 17 -/
@@ -366,7 +366,7 @@ static void nct7362_init_client(struct i2c_client *client,u32 gpio)
 		nct7362_write_value(client, NCT7362_REG_GPIO_00_03_CONFIG, 0x29);
 		nct7362_write_value(client, NCT7362_REG_GPIO_04_07_CONFIG, 0xAA);
 		nct7362_write_value(client, NCT7362_REG_GPIO_10_13_CONFIG, 0xA9);
-		nct7362_write_value(client, NCT7362_REG_GPIO_10_13_CONFIG, 0x6A);
+		nct7362_write_value(client, NCT7362_REG_GPIO_14_17_CONFIG, 0x6A);
 	}
 }
 
