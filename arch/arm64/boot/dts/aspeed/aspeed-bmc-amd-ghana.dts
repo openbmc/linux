@@ -94,6 +94,10 @@
 		i2c120 = &sys_vr;
 		i2c121 = &temp;
 		i2c122 = &fan_pump;
+		i2c132 = &p1_id;
+		i2c133 = &p1_clk;
+		i2c134 = &p1_vr;
+		i2c135 = &p1_sec;
 		i2c203 = &fan_board0;
 	};
 };
@@ -327,7 +331,7 @@
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-/*
+
 			p2v5_aux@9{
 				compatible = "ism,ism6636c";
 				reg = <0x9>;
@@ -349,10 +353,9 @@
 				reg = <0x15>;
 			};
 			p3v3@16{
-				compatible = "onsemi,fan251030";
+				compatible = "onsemi,fan251015";
 				reg = <0x16>;
 			};
-*/
 		};
 
 		temp: i2c@1 {
