@@ -192,6 +192,8 @@ struct i3c_dev_boardinfo {
 	u64 pid;
 	u8 bcr;
 	u8 dcr;
+	u16 mrl;
+	u16 mwl;
 	struct device_node *of_node;
 };
 

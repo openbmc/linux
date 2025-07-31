@@ -488,9 +488,9 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	DECLARE_COMPLETION_ONSTACK(done);
 	int i, last, ret = 0;
 
-	dev_info(&hci->master.dev, "cmd=%#x rnw=%d dbp=%d db=%#x ndests=%d data[0].len=%d", ccc->id,
-	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
-	    ccc->dests[0].payload.len);
+	dev_info(&hci->master.dev, "tgt=%#x cmd=%#x rnw=%d dbp=%d db=%#x ndests=%d data[0].len=%d",
+		ccc->dests[0].addr, ccc->id, ccc->rnw, ccc->dbp, ccc->db,
+		ccc->ndests, ccc->dests[0].payload.len);
 
 	/*
 	 * Driver should be able to send the CCC commands on the i3c buses like the
