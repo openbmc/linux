@@ -513,6 +513,12 @@
 	i3c-scl-hz = <12500000>;
 	i2c-scl-hz = <1000000>;
 	mctp-controller;
+
+	scoob_p0: scoob@0,22400002118 {
+		reg = <0x0 0x224 0x00002118>;
+		mrl = <69>;
+		mwl = <69>;
+	};
 };
 
 &i3c5 {
@@ -522,6 +528,18 @@
 	i3c-scl-hz = <12500000>;
 	i2c-scl-hz = <1000000>;
 	mctp-controller;
+
+	scoob_2x1p_p1: scoob@0,22400002118 {
+		reg = <0x0 0x224 0x00002118>;
+		mrl = <69>;
+		mwl = <69>;
+	};
+
+	scoob_2p_p1: scoob@0,22401002118 {
+		reg = <0x0 0x224 0x01002118>;
+		mrl = <69>;
+		mwl = <69>;
+	};
 };
 
 #ifdef I3C_HUB
