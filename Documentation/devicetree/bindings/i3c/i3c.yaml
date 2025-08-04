@@ -140,6 +140,22 @@ patternProperties:
           through SETDASA. If static address is not present, this address is assigned
           through SETNEWDA after assigning a temporary address via ENTDAA.
 
+      mrl:
+        $ref: /schemas/types.yaml#/definitions/uint16
+        minimum: 0x10
+        maximum: 0xffff
+        description: |
+          Maximum Read Length(MRL) that the device supports. Used by the controller
+          to configure the transfer limits via SETMRL CCC.
+
+      mwl:
+        $ref: /schemas/types.yaml#/definitions/uint16
+        minimum: 0x10
+        maximum: 0xffff
+        description: |
+          Maximum Write Length(MWL) that the device supports. Used by the controller
+          to configure the max write limits via SETMWL CCC.
+
     required:
       - reg
 
@@ -183,5 +199,14 @@ examples:
         sensor@0,39200154004 {
             reg = <0x0 0x392 0x154004>;
             clocks = <&clock_provider 0>;
+        };
+
+        /*
+         * I3C device with configurable MRL/MWL buffers
+         */
+        target@0,22400002118 {
+            reg = <0x0 0x224 0x00002118>;
+            mrl = <69>;
+            mwl = <69>;
         };
     };
