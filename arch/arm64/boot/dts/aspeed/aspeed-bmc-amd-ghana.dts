@@ -364,6 +364,14 @@
 			#size-cells = <0>;
 		};
 
+	};
+
+	i2cswitch@73 {
+		compatible = "nxp,pca9546";
+		reg = <0x73>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 		fan_pump: i2c@2 {
 			reg = <2>;
 			#address-cells = <1>;
