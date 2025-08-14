@@ -28,9 +28,14 @@
 #define   VUART_GCRA_VUART_EN			BIT(0)
 #define   VUART_GCRA_SIRQ_POLARITY		BIT(1)
 #define   VUART_GCRA_DISABLE_HOST_TX_DISCARD	BIT(5)
+#define VUART_GCRA_SLV_TIMEOUT_WIDTH_MASK	GENMASK(3, 2)
+#define VUART_GCRA_SLV_TIMEOUT_WIDTH_SHIFT	2
+#define VUART_GCRA_SLV_TIMEOUT_WIDTH_SEL	3 /* 64*LCLK or 1/28800 sec */
 #define VUART_GCRB	0x24
 #define   VUART_GCRB_HOST_SIRQ_MASK		GENMASK(7, 4)
 #define   VUART_GCRB_HOST_SIRQ_SHIFT		4
+#define VUART_GCRG	0x38
+#define VUART_GCRG_SLV_TIMEOUT_WIDTH_EN		BIT(1)
 #define VUART_ADDRL	0x28
 #define VUART_ADDRH	0x2c
 
@@ -339,6 +344,22 @@ static int __maybe_unused ast8250_resume(struct device *dev)
 	return 0;
 }
 
+static void ast8250_vuart_set_slave_timeout_width(struct ast8250_data *data,
+                                           unsigned int width)
+{
+	/* get register value and set slave timeout width select */
+	u32 reg = readl(data->regs + VUART_GCRA);
+	reg &= ~VUART_GCRA_SLV_TIMEOUT_WIDTH_MASK;
+	reg |= (width << VUART_GCRA_SLV_TIMEOUT_WIDTH_SHIFT);
+	printk(KERN_INFO "eSPI vuart %x\n", reg);
+	    writel(reg, data->regs + VUART_GCRA);
+
+	/* get and set slave timeout width enable */
+	reg = readl(data->regs + VUART_GCRG);
+	reg |= VUART_GCRG_SLV_TIMEOUT_WIDTH_EN;
+	writel(reg, data->regs + VUART_GCRG);
+}
+
 static int ast8250_probe(struct platform_device *pdev)
 {
 	int rc;
@@ -422,6 +443,7 @@ static int ast8250_probe(struct platform_device *pdev)
 		ast8250_vuart_init(data);
 		ast8250_vuart_set_host_tx_discard(data, true);
 		ast8250_vuart_set_enable(data, true);
+		ast8250_vuart_set_slave_timeout_width(data, VUART_GCRA_SLV_TIMEOUT_WIDTH_SEL);
 	}
 
 	data->use_dma = of_property_read_bool(dev->of_node, "dma-mode");
