@@ -146,7 +146,9 @@ static int sbtsi_read(struct device *dev, enum hwmon_sensor_types type,
 	if (ret < 0)
 		return ret;
 
-	*val = sbtsi_reg_to_mc(temp_int, temp_dec);
+	//*val = sbtsi_reg_to_mc(temp_int, temp_dec);
+	// Report the Temp in C (rather than mC)
+	*val = temp_int;
 
 	return 0;
 }
