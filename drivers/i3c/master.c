@@ -3753,8 +3753,11 @@ int i3c_dev_disable_ibi_locked(struct i3c_dev_desc *dev)
 
 	master = i3c_dev_get_master(dev);
 	ret = master->ops->disable_ibi(dev);
-	if (ret)
-		return ret;
+	if (ret) {
+		dev_info(&master->dev,
+			"%s(): failed for device %d-%llx, ret = %d",
+			__func__, master->bus.id, dev->info.pid, ret);
+	}
 
 	reinit_completion(&dev->ibi->all_ibis_handled);
 	if (atomic_read(&dev->ibi->pending_ibis))
