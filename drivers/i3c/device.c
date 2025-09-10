@@ -357,7 +357,7 @@ i3c_device_match_id(struct i3c_device *i3cdev,
 {
 	struct i3c_device_info devinfo;
 	const struct i3c_device_id *id;
-	u16 manuf, part, ext_info, inst;
+	u16 manuf, part, ext_info;
 	bool rndpid;
 
 	i3c_device_get_info(i3cdev, &devinfo);
@@ -365,11 +365,10 @@ i3c_device_match_id(struct i3c_device *i3cdev,
 	manuf = I3C_PID_MANUF_ID(devinfo.pid);
 	part = I3C_PID_PART_ID(devinfo.pid);
 	ext_info = I3C_PID_EXTRA_INFO(devinfo.pid);
-	inst = I3C_PID_INSTANCE_ID(devinfo.pid);
-	ext_info = ext_info | (inst << 12);
 	rndpid = I3C_PID_RND_LOWER_32BITS(devinfo.pid);
 
-	printk(" i3c_device_match_id: manuf 0x%x, part 0x%x, inst 0x%x, ext_info 0x%x \n", manuf, part, inst, ext_info);
+	printk(" i3c_device_match_id: manuf 0x%x, part 0x%x, inst 0x%x, ext_info 0x%x \n",
+			manuf, part, I3C_PID_INSTANCE_ID(devinfo.pid), ext_info);
 
 	for (id = id_table; id->match_flags != 0; id++) {
 		if ((id->match_flags & I3C_MATCH_DCR) &&
