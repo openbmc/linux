@@ -371,6 +371,26 @@ static const struct file_operations sbrmi_fops = {
 	.compat_ioctl	= sbrmi_ioctl,
 };
 
+static void map_sbrmi_pid_to_static_addr(struct i3c_device *i3cdev,
+					struct apml_sbrmi_device *rmi_dev)
+{
+	if ((i3cdev->bus->id == 4) && (i3cdev->desc->info.pid == 0x1118))
+	{
+		rmi_dev->dev_static_addr = 0x3C;
+	}
+	else if ((i3cdev->bus->id == 5) &&
+		((i3cdev->desc->info.pid == 0x1118) ||
+		(i3cdev->desc->info.pid == 0x01001118)))
+	{
+		rmi_dev->dev_static_addr = 0x38;
+	}
+	else
+	{
+		dev_err(&i3cdev->dev, "unknown pid. pid = 0x%llx\n",
+			i3cdev->desc->info.pid);
+	}
+}
+
 static int create_misc_rmi_device(struct apml_sbrmi_device *rmi_dev,
 				  struct device *dev)
 {
@@ -665,6 +685,12 @@ static int sbrmi_i3c_probe(struct i3c_device *i3cdev)
 
 	/* Need to verify for the static address for i3cdev */
 	rmi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
+	map_sbrmi_pid_to_static_addr(i3cdev, rmi_dev);
+	if (rmi_dev->dev_static_addr == 0)
+	{
+		dev_err(dev, "SBRMI: PID = 0x%llx, static address zero, skip the device\n",
+				i3cdev->desc->info.pid);
+	}
 
 	hwmon_dev_name = devm_kasprintf(dev, GFP_KERNEL, "sbrmi_%s",
 					sbrmi_addr_to_label(rmi_dev->dev_static_addr));
