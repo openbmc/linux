@@ -431,6 +431,26 @@ static const char *sbtsi_addr_to_label(u8 addr)
 	}
 }
 
+static void map_sbtsi_pid_to_static_addr(struct i3c_device *i3cdev,
+			struct apml_sbtsi_device *tsi_dev)
+{
+	if ((i3cdev->bus->id == 4) && (i3cdev->desc->info.pid == 0x118))
+	{
+		tsi_dev->dev_static_addr = 0x4C;
+	}
+	else if ((i3cdev->bus->id == 5) &&
+			((i3cdev->desc->info.pid == 0x118) ||
+			(i3cdev->desc->info.pid == 0x01000118)))
+	{
+			tsi_dev->dev_static_addr = 0x48;
+	}
+	else
+	{
+		dev_err(&i3cdev->dev, "unknown pid. pid = 0x%llx\n",
+			i3cdev->desc->info.pid);
+	}
+}
+
 static int create_misc_tsi_device(struct apml_sbtsi_device *tsi_dev,
 				  struct device *dev)
 {
@@ -492,6 +512,13 @@ static int sbtsi_i3c_probe(struct i3c_device *i3cdev)
 
 	/* Need to verify for the static address for i3cdev */
 	tsi_dev->dev_static_addr = i3cdev->desc->info.static_addr;
+	map_sbtsi_pid_to_static_addr(i3cdev, tsi_dev);
+	if (tsi_dev->dev_static_addr == 0)
+	{
+		dev_err(dev, "SBTSI: PID = 0x%llx, static address zero, skip the device\n",
+				i3cdev->desc->info.pid);
+		return -ENXIO;
+	}
 
 	hwmon_dev_name = devm_kasprintf(dev, GFP_KERNEL, "sbtsi_%s",
 					sbtsi_addr_to_label(tsi_dev->dev_static_addr));
