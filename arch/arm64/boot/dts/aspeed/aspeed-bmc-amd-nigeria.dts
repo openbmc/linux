@@ -283,6 +283,8 @@
 	i2cswitch@70 {
 		compatible = "nxp,pca9548";
 		reg = <0x70>;
+                pinctrl-names = "default";
+                i2c-mux-idle-disconnect;
 		#address-cells = <1>;
 		#size-cells = <0>;
 		fan_board0: i2c@2 {
@@ -300,6 +302,8 @@
 	i2cswitch@72 {
 		compatible = "nxp,pca9548";
 		reg = <0x72>;
+                pinctrl-names = "default";
+                i2c-mux-idle-disconnect;
 		#address-cells = <1>;
 		#size-cells = <0>;
 		fan_board1: i2c@2 {
