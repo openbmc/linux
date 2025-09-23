@@ -78,9 +78,6 @@ MODULE_PARM_DESC(reset, "Set to 1 to reset chip, not recommended");
 #define NCT7362_REG_PWM(index)    (0x90 + (index)*2 )
 #define NCT7362_REG_PWM_DEFAULT_VALUE  0x10
 
-static int set_pwm=0;
-static u32 fan_sel_gpio;
-
 static inline unsigned long FAN_FROM_REG(u16 val)
 {
 	if ((val >= 0x1fff) || (val == 0))
@@ -123,6 +120,8 @@ struct nct7362_data {
 	u16 pwm[16];		/* Register value combine */
 
 	char valid;
+	int bmc_set_pwm;	//enable bmc to set fan speed
+	u32 fan_sel_gpio;   //get fan gpio from board dts
 };
 
 static u8 nct7362_read_value(struct i2c_client *client, u16 reg);
@@ -163,7 +162,7 @@ show_pwm(struct device *dev, struct device_attribute *attr, char *buf)
 
 	val = data->pwm[index] & 0xff;
 
-	return sprintf(buf, "%u\n", (val));
+	return sprintf(buf, "%u\n", ((unsigned int)val));
 }
 
 static ssize_t
@@ -187,27 +186,29 @@ store_pwm(struct device *dev, struct device_attribute *attr,
 	nct7362_write_value(client, NCT7362_REG_PWM(index), tmpVal & 0xFF);
 
 	//add for setting GPIOx H->L when set pwm in the first time
-	if(set_pwm == 0)
+	if(data->bmc_set_pwm == 0)
 	{
-		u8 data=0;
-		u8 gpio=(u8)fan_sel_gpio;
+		u8 reg_value=0;
+		u8 gpio = (u8)data->fan_sel_gpio;
 
 		if(DEBUG) dev_err(dev,"store_pwm: set GPIO%d H->L when setting pwm for the first time (%d)\n",
-				gpio,set_pwm);
+				gpio,data->bmc_set_pwm);
 
-		data=nct7362_read_value(client, NCT7363_REG_OUTIN_CONFIG);
-		if(DEBUG) dev_err(dev,"store_pwm: Read NCT7363_REG_OUTIN_CONFIG==0x%x\n",data);
-		data &= ~(1<<gpio);
-		nct7362_write_value(client, NCT7363_REG_OUTIN_CONFIG, data);
-		if(DEBUG) dev_err(dev,"store_pwm: Write NCT7363_REG_OUTIN_CONFIG==0x%x\n",data);
+		reg_value = nct7362_read_value(client, NCT7363_REG_OUTIN_CONFIG);
+		if(DEBUG) dev_err(dev,"store_pwm: Read NCT7363_REG_OUTIN_CONFIG==0x%x\n",reg_value);
 
-		data=nct7362_read_value(client, NCT7363_REG_OUTPUT_PORT);
-		if(DEBUG) dev_err(dev,"store_pwm: Read NCT7363_REG_OUTPUT_PORT==0x%x\n",data);
-		data &= ~(1<<gpio);
-		nct7362_write_value(client, NCT7363_REG_OUTPUT_PORT, data);
-		if(DEBUG)dev_err(dev,"store_pwm: Write NCT7363_REG_OUTPUT_PORT==0x%x\n",data);
+		reg_value &= ~(1<<gpio);
+		nct7362_write_value(client, NCT7363_REG_OUTIN_CONFIG, reg_value);
+		if(DEBUG) dev_err(dev,"store_pwm: Write NCT7363_REG_OUTIN_CONFIG==0x%x\n",reg_value);
 
-		set_pwm=1;
+		reg_value = nct7362_read_value(client, NCT7363_REG_OUTPUT_PORT);
+		if(DEBUG) dev_err(dev,"store_pwm: Read NCT7363_REG_OUTPUT_PORT==0x%x\n",reg_value);
+
+		reg_value &= ~(1<<gpio);
+		nct7362_write_value(client, NCT7363_REG_OUTPUT_PORT, reg_value);
+		if(DEBUG)dev_err(dev,"store_pwm: Write NCT7363_REG_OUTPUT_PORT==0x%x\n",reg_value);
+
+		data->bmc_set_pwm=1;
 	}
 
 	mutex_unlock(&data->update_lock);
@@ -344,6 +345,7 @@ static const struct attribute_group nct7362_group_pwm = {
 
 static void nct7362_init_client(struct i2c_client *client,u32 gpio)
 {
+	//Nigeria
 	if(gpio == 5) {
 		// init /- pwm0 fanin9 10 11 -/- fanin 12 GPIO5 6 7 -/- GPIO 10 11 12 13 -/- GPIO 14 15 16 17 -/
 		nct7362_write_value(client, NCT7362_REG_WDT_CONFIG, 0x00);
@@ -356,7 +358,8 @@ static void nct7362_init_client(struct i2c_client *client,u32 gpio)
 		nct7362_write_value(client, NCT7362_REG_GPIO_10_13_CONFIG, 0x0);
 		nct7362_write_value(client, NCT7362_REG_GPIO_14_17_CONFIG, 0x0);
 	}
-	else {
+	else if(gpio == 3)  //Kenya
+	{
 		// init /- pwm0, pwm8, pwm15, fanin9 10 11 -/- fanin 12 GPIO5 6 7 -/- GPIO 10 11 12 13 -/- GPIO 14 15 16 17 -/
 		nct7362_write_value(client, NCT7362_REG_WDT_CONFIG, 0x00);
 		nct7362_write_value(client, NCT7362_REG_PWM_CTRL1, 0x01);
@@ -454,20 +457,20 @@ static int nct7362_probe(struct i2c_client *client)
 	mutex_init(&data->update_lock);
 
 	data->client = client; 
+	data->bmc_set_pwm = 0;
 
 	//add board_id compatibale
 	struct device_node *np = client->dev.of_node;
 
-	if(of_property_read_u32(np,"fan_sel_gpio",&fan_sel_gpio))
+	if(of_property_read_u32(np,"fan_sel_gpio",&data->fan_sel_gpio))
 	{
 		dev_err(&client->dev,"nct7362_probe: Error: no fan_sel_gpio in DTS, default to Nigeria \n");
-		fan_sel_gpio = 5;
 	}
 
-	if(DEBUG) dev_err(dev,"nct7362_probe: fan_sel_gpio =%d\n", fan_sel_gpio);
+	if(DEBUG) dev_err(dev,"nct7362_probe: fan_sel_gpio =%d\n", data->fan_sel_gpio);
 
 	/* Initialize the chip */
-	ret = nct736x_init(client, fan_sel_gpio);
+	ret = nct736x_init(client, data->fan_sel_gpio);
 	if(ret != 0)
 	{
 		dev_err(&client->dev, "nct7362_probe: init error\n");
@@ -523,7 +526,10 @@ static struct nct7362_data *nct7362_update_device(struct device *dev)
 	int i;
 
 	mutex_lock(&data->update_lock);
-	nct7362_init_client(client, fan_sel_gpio);
+
+	if(DEBUG) dev_err(dev,"nct7362_probe: fan_sel_gpio =%d\n", data->fan_sel_gpio);
+
+	nct7362_init_client(client, data->fan_sel_gpio);
 	if (!(time_after(jiffies, data->last_updated + HZ * 2)
 	      || !data->valid))
 		goto END;
