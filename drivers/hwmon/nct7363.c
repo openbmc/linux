@@ -345,7 +345,6 @@ static const struct attribute_group nct7362_group_pwm = {
 
 static void nct7362_init_client(struct i2c_client *client,u32 gpio)
 {
-	//Nigeria
 	if(gpio == 5) {
 		// init /- pwm0 fanin9 10 11 -/- fanin 12 GPIO5 6 7 -/- GPIO 10 11 12 13 -/- GPIO 14 15 16 17 -/
 		nct7362_write_value(client, NCT7362_REG_WDT_CONFIG, 0x00);
@@ -358,7 +357,7 @@ static void nct7362_init_client(struct i2c_client *client,u32 gpio)
 		nct7362_write_value(client, NCT7362_REG_GPIO_10_13_CONFIG, 0x0);
 		nct7362_write_value(client, NCT7362_REG_GPIO_14_17_CONFIG, 0x0);
 	}
-	else if(gpio == 3)  //Kenya
+	else if(gpio == 3)
 	{
 		// init /- pwm0, pwm8, pwm15, fanin9 10 11 -/- fanin 12 GPIO5 6 7 -/- GPIO 10 11 12 13 -/- GPIO 14 15 16 17 -/
 		nct7362_write_value(client, NCT7362_REG_WDT_CONFIG, 0x00);
@@ -464,7 +463,7 @@ static int nct7362_probe(struct i2c_client *client)
 
 	if(of_property_read_u32(np,"fan_sel_gpio",&data->fan_sel_gpio))
 	{
-		dev_err(&client->dev,"nct7362_probe: Error: no fan_sel_gpio in DTS, default to Nigeria \n");
+		dev_err(&client->dev,"nct7362_probe: Error: no fan_sel_gpio in DTS, set to default \n");
 	}
 
 	if(DEBUG) dev_err(dev,"nct7362_probe: fan_sel_gpio =%d\n", data->fan_sel_gpio);
