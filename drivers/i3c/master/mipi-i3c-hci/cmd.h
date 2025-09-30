@@ -76,13 +76,18 @@ enum hci_target_resp_err {
 	TARGET_RESP_ERR_CRC			= 0x1,
 	TARGET_RESP_ERR_PARITY			= 0x2,
 	TARGET_RESP_ERR_FRAME			= 0x3,
+	TARGET_RESP_ERR_IBI_REJECT		= 0x4,
 	TARGET_RESP_ERR_R_NO_CMD_DESC		= 0x5,
 	TARGET_RESP_ERR_OVERFLOW		= 0x6,
 	TARGET_RESP_ERR_W_RX_QUEUE_FULL		= 0x7,
+	TARGET_RESP_ERR_IBI_TIMEOUT		= 0x8,
+	TARGET_RESP_ERR_TX_UNDERFLOW		= 0x9,
 	TARGET_RESP_ERR_EARLY_TERMINATED	= 0xa,
 	TARGET_RESP_ERR_I2C_READ_TOO_MUCH	= 0xb,
 	TARGET_RESP_ERR_IBI_NACK		= 0xc,
 	TARGET_RESP_ERR_IBI_LOST_ARBITRATION	= 0xd,
+	TARGET_RESP_ERR_IBI_TX_UNDERFLOW	= 0xe,
+	TARGET_RESP_ERR_NO_TX_DATA		= 0xf,
 };
 
 /* Sub command in the internal control command */
@@ -133,6 +138,8 @@ struct hci_cmd_ops {
 	int (*prep_hdr)(struct i3c_hci *hci, struct hci_xfer *xfer, u8 addr,
 			u8 code, enum i3c_hdr_mode mode);
 	void (*prep_i3c_xfer)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
+			      struct hci_xfer *xfer);
+	void (*prep_ibi_xfer)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
 			      struct hci_xfer *xfer);
 	void (*prep_i2c_xfer)(struct i3c_hci *hci, struct i2c_dev_desc *dev,
 			      struct hci_xfer *xfer);

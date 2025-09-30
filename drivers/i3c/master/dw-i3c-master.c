@@ -692,9 +692,11 @@ static void dw_i3c_master_end_xfer_locked(struct dw_i3c_master *master, u32 isr)
 		switch (xfer->cmds[i].error) {
 		case RESPONSE_NO_ERROR:
 			break;
+		case RESPONSE_ERROR_TRANSF_ABORT:
+			ret = -EINTR;
+			break;
 		case RESPONSE_ERROR_PARITY:
 		case RESPONSE_ERROR_IBA_NACK:
-		case RESPONSE_ERROR_TRANSF_ABORT:
 		case RESPONSE_ERROR_CRC:
 		case RESPONSE_ERROR_FRAME:
 			ret = -EIO;
@@ -713,7 +715,7 @@ static void dw_i3c_master_end_xfer_locked(struct dw_i3c_master *master, u32 isr)
 	xfer->ret = ret;
 	complete(&xfer->comp);
 
-	if (ret < 0) {
+	if (ret < 0 && ret != -EINTR) {
 		/*
 		 * The controller will enter the HALT state if an error occurs.
 		 * Therefore, there is no need to manually halt the controller
@@ -1793,7 +1795,7 @@ static void dw_i3c_common_detach_i3c_dev(struct i3c_dev_desc *dev)
 }
 
 static int dw_i3c_master_i2c_xfers(struct i2c_dev_desc *dev,
-				   const struct i2c_msg *i2c_xfers,
+				   struct i2c_msg *i2c_xfers,
 				   int i2c_nxfers)
 {
 	struct dw_i3c_i2c_dev_data *data = i2c_dev_get_master_data(dev);
@@ -1972,8 +1974,7 @@ static void dw_i3c_master_free_ibi(struct i3c_dev_desc *dev)
 	data->ibi_pool = NULL;
 }
 
-/* Enable/Disable the IBI interrupt signal and status */
-static void dw_i3c_master_set_ibi_signal(struct dw_i3c_master *master, bool enable)
+static void dw_i3c_master_enable_sir_signal(struct dw_i3c_master *master, bool enable)
 {
 	u32 reg;
 
@@ -2025,7 +2026,7 @@ static void dw_i3c_master_set_sir_enabled(struct dw_i3c_master *master,
 	writel(reg, master->regs + IBI_SIR_REQ_REJECT);
 
 	if (global)
-		dw_i3c_master_set_ibi_signal(master, enable);
+		dw_i3c_master_enable_sir_signal(master, enable);
 
 
 	spin_unlock_irqrestore(&master->devs_lock, flags);
@@ -2035,7 +2036,7 @@ static int dw_i3c_master_enable_hotjoin(struct i3c_master_controller *m)
 {
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 
-	dw_i3c_master_set_ibi_signal(master, true);
+	dw_i3c_master_enable_sir_signal(master, true);
 	writel(readl(master->regs + DEVICE_CTRL) & ~DEV_CTRL_HOT_JOIN_NACK,
 	       master->regs + DEVICE_CTRL);
 
@@ -2160,6 +2161,8 @@ static void dw_i3c_master_handle_ibi_sir(struct dw_i3c_master *master,
 	return;
 
 err_drain:
+	if (terminate_ibi)
+		i3c_generic_ibi_recycle_slot(data->ibi_pool, slot);
 	dw_i3c_master_drain_ibi_queue(master, len);
 	state = FIELD_GET(CM_TFR_STS, readl(master->regs + PRESENT_STATE));
 	if (terminate_ibi && state == CM_TFR_STS_MASTER_SERV_IBI)
@@ -2654,6 +2657,7 @@ EXPORT_SYMBOL_GPL(dw_i3c_common_probe);
 
 void dw_i3c_common_remove(struct dw_i3c_master *master)
 {
+	cancel_work_sync(&master->hj_work);
 	i3c_unregister(&master->base);
 
 	reset_control_assert(master->core_rst);

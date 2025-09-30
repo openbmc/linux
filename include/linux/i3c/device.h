@@ -15,8 +15,6 @@
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
 
-extern struct bus_type i3c_bus_type;
-
 /**
  * enum i3c_error_code - I3C error codes
  *
