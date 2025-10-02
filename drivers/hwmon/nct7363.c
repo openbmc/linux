@@ -526,8 +526,6 @@ static struct nct7362_data *nct7362_update_device(struct device *dev)
 
 	mutex_lock(&data->update_lock);
 
-	if(DEBUG) dev_err(dev,"nct7362_probe: fan_sel_gpio =%d\n", data->fan_sel_gpio);
-
 	nct7362_init_client(client, data->fan_sel_gpio);
 	if (!(time_after(jiffies, data->last_updated + HZ * 2)
 	      || !data->valid))
