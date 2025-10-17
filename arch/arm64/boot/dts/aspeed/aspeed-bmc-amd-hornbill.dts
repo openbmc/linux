@@ -597,17 +597,17 @@
 
 			p0core0run@40 {
 				//P0_VDD_CORE_0_RUN
-				compatible = "infineon,xdpe12284";
+				compatible = "raa229639";
 				reg = <0x40>;
 			};
 			p0core1run@41 {
 				//P0_VDD_CORE_1_RUN
-				compatible = "infineon,xdpe12284";
+				compatible = "raa229639";
 				reg = <0x41>;
 			};
 			p0vddvddiorun@42 {
 				//P0_VDD_VDDIO_RUN
-				compatible = "infineon,xdpe12284";
+				compatible = "raa229641";
 				reg = <0x42>;
 			};
 			p0vdd33s5run@46 {
@@ -873,17 +873,17 @@
 
 			p1core0run@40 {
 				//P0_VDD_CORE_0_RUN
-				compatible = "infineon,xdpe12284";
+				compatible = "raa229639";
 				reg = <0x40>;
 			};
 			p1core1run@41 {
 				//P0_VDD_CORE_1_RUN
-				compatible = "infineon,xdpe12284";
+				compatible = "raa229639";
 				reg = <0x41>;
 			};
 			p1vddvddiorun@42 {
 				//P0_VDD_VDDIO_RUN
-				compatible = "infineon,xdpe12284";
+				compatible = "raa229641";
 				reg = <0x42>;
 			};
 			p1vdd33s5run@46 {

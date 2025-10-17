@@ -661,17 +661,17 @@
 
 			core0run@40 {
 				//P0_VDD_CORE_0_RUN
-				compatible = "raa229639";
+				compatible = "mps,mp2856";
 				reg = <0x40>;
 			};
 			core1run@41 {
 				//P0_VDD_CORE_1_RUN
-				compatible = "raa229639";
+				compatible = "mps,mp2856";
 				reg = <0x41>;
 			};
 			vddvddiorun@42 {
 				//P0_VDD_VDDIO_RUN
-				compatible = "raa229641";
+				compatible = "mps,mp2856";
 				reg = <0x42>;
 			};
 			vdd33s5run@46 {
