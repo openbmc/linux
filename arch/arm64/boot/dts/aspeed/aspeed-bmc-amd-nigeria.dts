@@ -869,7 +869,7 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 		/*88-95*/ "","","","","","","","",
 		/*96-103*/ "","","","","",
 			"","MGMT_MON_PLATFORM_CONFIG","MGMT_ASSERT_PLATFORM_CONFIG",
-		/*104-111*/ "P1_I3C_APML_ALERT_L","","","","","HPM_STBY_EN","","",
+		/*104-111*/ "P1_I3C_APML_ALERT_L","","MGMT_MON_INTR_CHASSIS_L","","","HPM_STBY_EN","","",
 		/*112-119*/ "","","","","","","","",
 		/*120-127*/ "","","","","","","","",
 		/*128-135*/ "P0_MGMT_MON_RST_BTN_L","P0_MGMT_ASSERT_RST_BTN_L","P0_MGMT_MON_PWR_BTN_L",
