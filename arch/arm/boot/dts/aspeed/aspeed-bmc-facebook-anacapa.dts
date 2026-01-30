@@ -328,6 +328,12 @@
 			#size-cells = <0>;
 		};
 	};
+
+	eeprom@50 {
+		compatible = "atmel,24c2048";
+		reg = <0x50>;
+		pagesize = <128>;
+	};
 };
 
 // R Bridge Board
@@ -361,6 +367,12 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
+	};
+
+	eeprom@50 {
+		compatible = "atmel,24c2048";
+		reg = <0x50>;
+		pagesize = <128>;
 	};
 };
 
