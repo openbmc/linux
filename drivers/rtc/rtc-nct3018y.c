@@ -23,6 +23,7 @@
 #define NCT3018Y_REG_CTRL	0x0A /* timer control */
 #define NCT3018Y_REG_ST		0x0B /* status */
 #define NCT3018Y_REG_CLKO	0x0C /* clock out */
+#define NCT3018Y_REG_CTRL2	0x0D /* 2nd Control register */
 #define NCT3018Y_REG_PART	0x21 /* part info */
 
 #define NCT3018Y_BIT_AF		BIT(7)
@@ -541,6 +542,14 @@ static int nct3018y_probe(struct i2c_client *client)
 		return err;
 	}
 
+	/* set MWO bit to '0' in 2nd Control register to enable SRAM read/write access to secondary i2c*/
+	flags = 0;
+	err = i2c_smbus_write_byte_data(client, NCT3018Y_REG_CTRL2, flags);
+	if (err < 0) {
+		dev_dbg(&client->dev, "%s: write error\n", __func__);
+		return err;
+	}
+	
 	nct3018y->rtc = devm_rtc_allocate_device(&client->dev);
 	if (IS_ERR(nct3018y->rtc))
 		return PTR_ERR(nct3018y->rtc);
