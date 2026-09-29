@@ -59,6 +59,8 @@ properties:
       - renesas,raa229001
       - renesas,raa229004
       - renesas,raa229621
+      - renesas,raa229639
+      - renesas,raa229640
 
   reg:
     maxItems: 1
